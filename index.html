@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>AI 解剖教学 - 腹直肌鞘与弓状线</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; overflow: hidden; color: #eee; }
+  #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+  #ui-panel {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; align-items: center;
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+    padding: 10px 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
+    max-width: 96vw; flex-wrap: wrap; justify-content: center;
+    z-index: 100;
+  }
+  #ui-panel button, .cmd-btn {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.12);
+    color: #eee; padding: 10px 14px; border-radius: 12px; cursor: pointer;
+    font-size: 14px; transition: 0.2s; white-space: nowrap;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    user-select: none; min-height: 44px;
+  }
+  #ui-panel button:active { background: rgba(255,255,255,0.25); transform: scale(0.95); }
+  #ui-panel button.active { background: #4a9eff; border-color: #4a9eff; }
+  #voice-btn { background: #2d6a4f; border-color: #40916c; }
+  #voice-btn.listening { background: #d62828; border-color: #ff6b6b; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  #cmd-row {
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+  }
+  #input-row {
+    display: flex; gap: 6px; width: 100%;
+  }
+  #input-row input {
+    flex: 1; min-width: 0;
+    padding: 10px 14px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.4);
+    color: #eee; font-size: 16px; outline: none;
+  }
+  #input-row input:focus { border-color: #4a9eff; }
+  #input-row button {
+    padding: 10px 16px; border-radius: 12px; border: none;
+    background: #4a9eff; color: white; font-size: 14px;
+    touch-action: manipulation; min-height: 44px;
+  }
+
+  #status {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+    padding: 8px 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.08);
+    font-size: 13px; z-index: 100; text-align: center;
+    max-width: 85vw; pointer-events: none;
+    line-height: 1.4;
+  }
+  #status .hint { color: #888; font-size: 11px; margin-top: 3px; display: block; }
+
+  #legend {
+    position: fixed; right: 8px; top: 50%; transform: translateY(-50%);
+    background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+    padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);
+    font-size: 11px; line-height: 1.7; z-index: 100;
+    max-height: 70vh; overflow-y: auto;
+  }
+  #legend .item { display: flex; align-items: center; gap: 6px; }
+  #legend .color-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0; }
+
+  #api-setup {
+    position: fixed; top: 80px; right: 20px; z-index: 100;
+  }
+  #api-setup summary { cursor: pointer; font-size: 12px; color: #888; }
+  #api-setup input { display: block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; border: none; background: rgba(0,0,0,0.7); color: #eee; font-size: 12px; width: 260px; }
+  #api-setup label { font-size: 11px; color: #888; }
+
+  @media (max-width: 768px) {
+    #ui-panel { bottom: 10px; padding: 8px 10px; gap: 4px; }
+    #cmd-row button { font-size: 12px; padding: 8px 10px; min-height: 36px; }
+    #status { font-size: 12px; top: 10px; padding: 6px 14px; max-width: 90vw; }
+    #legend { right: 4px; padding: 8px; font-size: 10px; max-height: 50vh; }
+    #legend .color-box { width: 10px; height: 10px; }
+    #qr-panel { left: 10px; top: 70px; max-width: 160px; }
+    #qr-panel img { width: 120px; height: 120px; }
+    #api-setup { right: 8px; top: 70px; }
+    #api-setup input { width: 180px; font-size: 11px; }
+    #input-row input { font-size: 16px; }
+  }
+  @media (max-width: 480px) {
+    #legend { display: none; }
+    #api-setup { display: none; }
+    #cmd-row button { font-size: 11px; padding: 6px 8px; min-height: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="status">
+  <div id="status-text">🎤 按下方麦克风按钮，说"展示弓状线以上"</div>
+  <div class="hint" id="status-hint">或点击按钮操作 · 也支持文字输入</div>
+</div>
+
+<div id="legend">
+  <div class="item"><span class="color-box" style="background:#e76f51"></span> 腹外斜肌</div>
+  <div class="item"><span class="color-box" style="background:#f4a261"></span> 腹内斜肌</div>
+  <div class="item"><span class="color-box" style="background:#e9c46a"></span> 腹横肌</div>
+  <div class="item"><span class="color-box" style="background:#2a9d8f"></span> 腹直肌</div>
+  <div class="item"><span class="color-box" style="background:#457b9d"></span> 腹直肌鞘前层</div>
+  <div class="item"><span class="color-box" style="background:#a8dadc"></span> 腹直肌鞘后层</div>
+  <div class="item"><span class="color-box" style="background:#e63946"></span> 弓状线</div>
+  <div class="item"><span class="color-box" style="background:rgba(255,255,255,0.15)"></span> 腹横筋膜</div>
+</div>
+
+<details id="api-setup">
+  <summary>⚙ 接入DeepSeek (可选)</summary>
+  <label>填入API Key可使用自然语言指令</label>
+  <input id="api-key-input" type="password" placeholder="sk-xxxxxxxxxxxxxxxx" />
+  <label style="margin-top:4px;display:block">不填则使用关键词匹配模式</label>
+</details>
+
+<div id="ui-panel">
+  <div id="cmd-row">
+    <button onclick="showAll()">🔍 完整</button>
+    <button onclick="animateSlice()">▶ 滑动截面</button>
+    <button onclick="toggleAbove()">⬆ 弓上线</button>
+    <button onclick="toggleBelow()">⬇ 弓下线</button>
+    <button onclick="toggleCrossSection()">✂ 截面</button>
+    <button onclick="toggleLabels()">🏷 标注</button>
+    <button onclick="resetView()">🔄 复位</button>
+    <button id="voice-btn" onclick="toggleVoice()" class="cmd-btn">🎤</button>
+    <button onclick="toggleFullscreen()" class="cmd-btn">⛶ 全屏</button>
+  </div>
+  <div id="input-row">
+    <input id="text-input" type="text" placeholder="输入指令 或说：滑动截面/弓上线/前层/后层/讲解/临床..." />
+    <button id="send-btn" onclick="handleTextCommand(document.getElementById('text-input').value)">发送</button>
+  </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ─── Scene Setup ───
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(35, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.set(10, 6, 12);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(container.clientWidth, container.clientHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.left = '0';
+labelRenderer.domElement.style.pointerEvents = 'none';
+container.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.5, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+// ─── Lights ───
+const ambient = new THREE.AmbientLight(0x404060, 0.6);
+scene.add(ambient);
+const key = new THREE.DirectionalLight(0xffffff, 2.5);
+key.position.set(8, 12, 6);
+key.castShadow = true;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88bbff, 0.8);
+fill.position.set(-4, 4, -6);
+scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.6);
+rim.position.set(-3, 1, 8);
+scene.add(rim);
+
+// ─── Ground grid ───
+const gridHelper = new THREE.GridHelper(16, 16, 0x444466, 0x333355);
+gridHelper.position.y = -0.5;
+scene.add(gridHelper);
+
+// ─── State ───
+export const state = {
+  showAbove: true,
+  showBelow: true,
+  showCrossSection: false,
+  showLabels: true,
+  slicePosition: 0, // -1..1
+  animating: false,
+};
+
+// ─── Colors ───
+const C = {
+  EO:      0xe76f51, // external oblique
+  IO:      0xf4a261, // internal oblique
+  TA:      0xe9c46a, // transversus abdominis
+  RA:      0x2a9d8f, // rectus abdominis
+  sheathA: 0x457b9d, // anterior sheath
+  sheathP: 0xa8dadc, // posterior sheath
+  arcuate: 0xe63946, // arcuate line
+  fascia:  0x6c757d, // transversalis fascia
+  peritoneum: 0x4a4e69,
+};
+
+// ─── Build Model ───
+const modelGroup = new THREE.Group();
+scene.add(modelGroup);
+
+// The model: a block diagram showing layers wrapping around rectus
+// We build above-arcuate and below-arcuate sections side by side
+// Left half = above arcuate, Right half = below arcuate
+
+const blockWidth = 5;
+const blockHeight = 3;
+const blockDepth = 3.5;
+const raWidth = 1.2;   // rectus abdominis width
+
+// Helper to make a transparent box for a layer segment
+function makeLayer(color, width, height, depth, pos, opacity=1, emissiveIntensity=0) {
+  const geo = new THREE.BoxGeometry(width, height, depth);
+  const mat = new THREE.MeshPhysicalMaterial({
+    color, transparent: opacity < 1, opacity,
+    roughness: 0.5, metalness: 0.05,
+    clearcoat: 0.1,
+    emissive: color, emissiveIntensity,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(pos.x, pos.y, pos.z);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+// Each layer: from back (Z-) to front (Z+):
+// 1. Peritoneum (thin)
+// 2. Transversalis fascia (thin)
+// 3. TA aponeurosis (varies above/below)
+// 4. IO aponeurosis (splits above)
+// 5. EO aponeurosis (front)
+// Rectus abdominis runs vertically in center
+// Above arc: IO+TA wrap both sides; Below arc: all three go front
+
+const layers = {};
+const labels = [];
+const halfW = blockWidth / 2;
+const halfD = blockDepth / 2;
+const layerThickness = 0.15;
+
+// ---- Rectus Abdominis (center column) ----
+const raGeo = new THREE.BoxGeometry(raWidth, blockHeight, blockDepth);
+const raMat = new THREE.MeshPhysicalMaterial({
+  color: C.RA, roughness: 0.6, metalness: 0.0,
+  clearcoat: 0.2,
+});
+const raMesh = new THREE.Mesh(raGeo, raMat);
+raMesh.position.set(0, blockHeight/2, 0);
+raMesh.castShadow = true;
+modelGroup.add(raMesh);
+layers.rectus = raMesh;
+
+// ---- Above Arcuate Line (left half) ----
+const aboveGroup = new THREE.Group();
+aboveGroup.position.set(-halfW/2 - 0.6, 0, 0);
+modelGroup.add(aboveGroup);
+
+// EO aponeurosis (front layer, covers whole front)
+const eoAbove = makeLayer(C.EO, halfW, blockHeight, layerThickness, 
+  {x: 0, y: blockHeight/2, z: halfD - layerThickness/2});
+aboveGroup.add(eoAbove);
+
+// IO aponeurosis - splits into anterior and posterior
+// Anterior leaf: on front of rectus
+const ioAntAbove = makeLayer(C.IO, halfW, blockHeight, layerThickness,
+  {x: 0, y: blockHeight/2, z: halfD - layerThickness * 1.5 - 0.01});
+aboveGroup.add(ioAntAbove);
+// Posterior leaf: behind rectus
+const ioPostAbove = makeLayer(C.IO, halfW, blockHeight, layerThickness,
+  {x: 0, y: blockHeight/2, z: -halfD + layerThickness * 1.5 + 0.01});
+aboveGroup.add(ioPostAbove);
+
+// TA aponeurosis (posterior layer)
+const taAbove = makeLayer(C.TA, halfW, blockHeight, layerThickness,
+  {x: 0, y: blockHeight/2, z: -halfD + layerThickness * 0.5});
+aboveGroup.add(taAbove);
+
+// Transversalis fascia (thin, behind all)
+const fasciaAbove = makeLayer(C.fascia, halfW, blockHeight, layerThickness * 0.5,
+  {x: 0, y: blockHeight/2, z: -halfD - layerThickness * 0.3}, 0.5);
+aboveGroup.add(fasciaAbove);
+
+// Peritoneum
+const periAbove = makeLayer(C.peritoneum, halfW, blockHeight, layerThickness * 0.3,
+  {x: 0, y: blockHeight/2, z: -halfD - layerThickness * 0.6}, 0.3);
+aboveGroup.add(periAbove);
+
+// ---- Below Arcuate Line (right half) ----
+const belowGroup = new THREE.Group();
+belowGroup.position.set(halfW/2 + 0.6, 0, 0);
+modelGroup.add(belowGroup);
+
+// EO aponeurosis
+const eoBelow = makeLayer(C.EO, halfW, blockHeight, layerThickness,
+  {x: 0, y: blockHeight/2, z: halfD - layerThickness/2});
+belowGroup.add(eoBelow);
+
+// IO aponeurosis - ALL on front (no split)
+const ioBelow = makeLayer(C.IO, halfW, blockHeight, layerThickness,
+  {x: 0, y: blockHeight/2, z: halfD - layerThickness * 1.5 - 0.01});
+belowGroup.add(ioBelow);
+
+// TA aponeurosis - ALSO ALL on front
+const taBelow = makeLayer(C.TA, halfW, blockHeight, layerThickness,
+  {x: 0, y: blockHeight/2, z: halfD - layerThickness * 2.5 - 0.02});
+belowGroup.add(taBelow);
+
+// Behind rectus: nothing (just fascia)
+const fasciaBelow = makeLayer(C.fascia, halfW, blockHeight, layerThickness * 0.5,
+  {x: 0, y: blockHeight/2, z: -halfD + layerThickness * 0.3}, 0.5);
+belowGroup.add(fasciaBelow);
+const periBelow = makeLayer(C.peritoneum, halfW, blockHeight, layerThickness * 0.3,
+  {x: 0, y: blockHeight/2, z: -halfD - layerThickness * 0.3}, 0.3);
+belowGroup.add(periBelow);
+
+// ---- Sheath labels (visual hints on top) ----
+function addSheathLabel(text, x, z, color='#ffffff') {
+  const div = document.createElement('div');
+  div.textContent = text;
+  div.style.color = color;
+  div.style.fontSize = '13px';
+  div.style.fontWeight = '600';
+  div.style.textShadow = '0 2px 8px rgba(0,0,0,0.8)';
+  div.style.background = 'rgba(0,0,0,0.6)';
+  div.style.padding = '4px 10px';
+  div.style.borderRadius = '6px';
+  div.style.border = '1px solid ' + color;
+  div.style.whiteSpace = 'nowrap';
+  const label = new CSS2DObject(div);
+  label.position.set(x, blockHeight + 0.4, z);
+  modelGroup.add(label);
+  labels.push(label);
+  return label;
+}
+
+addSheathLabel('弓状线以上', -halfW/2 - 0.6, halfD + 0.8, '#e63946');
+addSheathLabel('弓状线以下', halfW/2 + 0.6, halfD + 0.8, '#e63946');
+addSheathLabel('鞘前层（外斜+内斜前层）', -halfW/2 - 0.6, halfD + 0.3, '#457b9d');
+addSheathLabel('鞘后层（内斜后层+腹横肌）', -halfW/2 - 0.6, -halfD - 0.3, '#a8dadc');
+addSheathLabel('鞘前层（外斜+内斜+腹横肌）', halfW/2 + 0.6, halfD + 0.3, '#457b9d');
+addSheathLabel('鞘后层缺如', halfW/2 + 0.6, -halfD - 0.3, '#666');
+addSheathLabel('腹直肌', 0, halfD + 0.8, '#2a9d8f');
+
+// ---- Side panel labels for layer colors ----
+function addLayerLabel(text, x, z, color, yOffset=0) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  div.style.color = '#ddd';
+  div.style.fontSize = '11px';
+  div.style.textShadow = '0 1px 4px rgba(0,0,0,0.9)';
+  div.style.background = 'rgba(0,0,0,0.5)';
+  div.style.padding = '2px 8px';
+  div.style.borderRadius = '4px';
+  div.style.borderLeft = '3px solid ' + color;
+  const label = new CSS2DObject(div);
+  label.position.set(x, blockHeight * 0.5 + yOffset, z);
+  modelGroup.add(label);
+  labels.push(label);
+  return label;
+}
+
+// Layer labels on the right side of right block
+const labelZ = halfD + 1.2;
+addLayerLabel('腹外斜肌腱膜', halfW + 1.8, labelZ, '#e76f51', 1.1);
+addLayerLabel('腹内斜肌腱膜', halfW + 1.8, labelZ, '#f4a261', 0.55);
+addLayerLabel('腹横肌腱膜', halfW + 1.8, labelZ, '#e9c46a', 0);
+addLayerLabel('腹横筋膜', halfW + 1.8, labelZ, '#6c757d', -0.7);
+addLayerLabel('腹膜', halfW + 1.8, labelZ, '#4a4e69', -1.1);
+
+// ---- Arcuate Line Indicator ----
+// A highlighted edge where the transition happens
+const arcLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.1, -blockHeight/2, -halfD),
+    new THREE.Vector3(-0.1, blockHeight/2, -halfD),
+    new THREE.Vector3(-0.1, blockHeight/2, halfD),
+    new THREE.Vector3(-0.1, -blockHeight/2, halfD),
+  ]),
+  new THREE.LineBasicMaterial({ color: C.arcuate, linewidth: 2 })
+);
+modelGroup.add(arcLine);
+layers.arcuateLine = arcLine;
+
+// Arrow indicator for arcuate line
+const arrowDir = new THREE.Vector3(0, 0, 1);
+const arrowOrigin = new THREE.Vector3(-0.1, blockHeight + 0.2, 0);
+const arrowLength = 0.8;
+const arrowColor = 0xe63946;
+const arrowHelper = new THREE.ArrowHelper(arrowDir, arrowOrigin, arrowLength, arrowColor, 0.3, 0.15);
+modelGroup.add(arrowHelper);
+
+// ---- Cross Section Plane (for the slice view) ----
+const sliceGeo = new THREE.PlaneGeometry(blockDepth + 1, blockHeight + 1);
+const sliceMat = new THREE.MeshPhysicalMaterial({
+  color: 0x4a9eff,
+  transparent: true,
+  opacity: 0.15,
+  side: THREE.DoubleSide,
+  emissive: 0x4a9eff,
+  emissiveIntensity: 0.2,
+});
+const sliceMesh = new THREE.Mesh(sliceGeo, sliceMat);
+sliceMesh.rotation.y = Math.PI / 2;
+sliceMesh.position.set(0, blockHeight/2, 0);
+sliceMesh.visible = false;
+modelGroup.add(sliceMesh);
+layers.slicePlane = sliceMesh;
+
+// Border lines for slice plane
+const sliceBorderMat = new THREE.LineBasicMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.5 });
+const sliceBorderPts = [
+  new THREE.Vector3(-0.01, -blockHeight/2, -halfD),
+  new THREE.Vector3(-0.01, -blockHeight/2, halfD),
+  new THREE.Vector3(-0.01, blockHeight/2, halfD),
+  new THREE.Vector3(-0.01, blockHeight/2, -halfD),
+  new THREE.Vector3(-0.01, -blockHeight/2, -halfD),
+];
+const sliceBorder = new THREE.Line(new THREE.BufferGeometry().setFromPoints(sliceBorderPts), sliceBorderMat);
+sliceBorder.position.set(0, 0, 0);
+sliceBorder.visible = false;
+modelGroup.add(sliceBorder);
+layers.sliceBorder = sliceBorder;
+
+// ---- Group references for show/hide ----
+layers.aboveGroup = aboveGroup;
+layers.belowGroup = belowGroup;
+layers.aboveComponents = [eoAbove, ioAntAbove, ioPostAbove, taAbove, fasciaAbove, periAbove];
+layers.belowComponents = [eoBelow, ioBelow, taBelow, fasciaBelow, periBelow];
+layers.allLabels = labels;
+
+// ─── Public API ───
+window.showAll = function() {
+  state.showAbove = true;
+  state.showBelow = true;
+  aboveGroup.visible = true;
+  belowGroup.visible = true;
+  state.showCrossSection = false;
+  sliceMesh.visible = false;
+  sliceBorder.visible = false;
+  updateStatus('完整展示 弓状线上下对比');
+};
+
+window.resetView = function() {
+  camera.position.set(10, 6, 12);
+  controls.target.set(0, 1.5, 0);
+  controls.update();
+  showAll();
+};
+
+window.toggleAbove = function() {
+  state.showAbove = !state.showAbove;
+  aboveGroup.visible = state.showAbove;
+  updateStatus(state.showAbove ? '显示弓状线以上' : '隐藏弓状线以上');
+};
+
+window.toggleBelow = function() {
+  state.showBelow = !state.showBelow;
+  belowGroup.visible = state.showBelow;
+  updateStatus(state.showBelow ? '显示弓状线以下' : '隐藏弓状线以下');
+};
+
+window.toggleCrossSection = function() {
+  state.showCrossSection = !state.showCrossSection;
+  sliceMesh.visible = state.showCrossSection;
+  sliceBorder.visible = state.showCrossSection;
+  updateStatus(state.showCrossSection ? '显示横截面' : '隐藏横截面');
+};
+
+window.toggleLabels = function() {
+  state.showLabels = !state.showLabels;
+  labels.forEach(l => l.visible = state.showLabels);
+  updateStatus(state.showLabels ? '显示标注' : '隐藏标注');
+};
+
+window.animateSlice = function() {
+  if (state.animating) return;
+  state.animating = true;
+  state.showCrossSection = true;
+  sliceMesh.visible = true;
+  sliceBorder.visible = true;
+  
+  const start = -2.5;
+  const end = 2.5;
+  const duration = 3000;
+  const startTime = performance.now();
+  
+  function step(time) {
+    const t = Math.min((time - startTime) / duration, 1);
+    const eased = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    sliceMesh.position.x = start + (end - start) * eased;
+    sliceBorder.position.x = start + (end - start) * eased;
+    
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      state.animating = false;
+      // Pause then reset
+      setTimeout(() => {
+        sliceMesh.position.x = 0;
+        sliceBorder.position.x = 0;
+        if (!state.showCrossSection) {
+          sliceMesh.visible = false;
+          sliceBorder.visible = false;
+        }
+      }, 2000);
+    }
+  }
+  requestAnimationFrame(step);
+  updateStatus('🔄 滑动截面显示弓状线过渡...');
+};
+
+// ─── Fullscreen ───
+window.toggleFullscreen = function() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) {
+    el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
+  } else {
+    document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+  }
+};
+
+// ─── Setup input listener (works on mobile) ───
+document.getElementById('text-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' || e.keyCode === 13) {
+    e.preventDefault();
+    handleTextCommand(this.value);
+  }
+});
+document.getElementById('send-btn').addEventListener('click', function() {
+  handleTextCommand(document.getElementById('text-input').value);
+});
+
+// Check if mobile
+const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+if (isMobile) {
+  // Hide voice button on mobile (most browsers don't support Web Speech)
+  const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!hasSpeech) {
+    document.getElementById('voice-btn').style.display = 'none';
+  }
+}
+
+// ─── QR Code Panel ───
+function showQRPanel(ip, port) {
+  const url = `http://${ip}:${port}/rectus-sheath-ai.html`;
+  
+  // Create QR panel using QRServer API
+  const qrPanel = document.createElement('div');
+  qrPanel.id = 'qr-panel';
+  qrPanel.innerHTML = `
+    <style>
+    #qr-panel {
+      position: fixed; left: 20px; top: 80px; z-index: 200;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+      padding: 16px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12);
+      text-align: center; font-size: 13px; max-width: 200px;
+    }
+    #qr-panel img { width: 160px; height: 160px; border-radius: 8px; margin: 8px 0; background: white; padding: 4px; }
+    #qr-panel .url { color: #4a9eff; font-size: 11px; word-break: break-all; margin-top: 6px; }
+    #qr-panel .close { margin-top: 8px; background: rgba(255,255,255,0.1); border: none; color: #eee; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+    #qr-panel .title { font-weight: 600; color: #eee; }
+    </style>
+    <div class="title">📱 扫码打开</div>
+    <div class="hint" style="color:#888;font-size:11px;margin:4px 0">同一WiFi下手机扫码</div>
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}" alt="QR Code" onerror="this.parentElement.querySelector('.url').style.display='block'" />
+    <div class="url" style="display:none">${url}</div>
+    <button class="close" onclick="this.parentElement.remove()">关闭</button>
+  `;
+  document.body.appendChild(qrPanel);
+}
+
+window.showQRPanel = showQRPanel;
+
+// ─── Voice + Text Command Handler ───
+const statusEl = document.getElementById('status-text');
+const statusHint = document.getElementById('status-hint');
+
+function updateStatus(text, hint='') {
+  statusEl.textContent = text;
+  if (hint) statusHint.textContent = hint;
+  else statusHint.innerHTML = '点击按钮或按🎤语音输入';
+}
+
+// Keyword-based command parser (works without API key)
+const commandMap = [
+  { patterns: ['完整', '全部', '所有', 'show all', 'reset'], fn: () => { showAll(); return '完整展示'; } },
+  { patterns: ['复位', '重置', '还原', '默认'], fn: () => { resetView(); return '已复位'; } },
+  { patterns: ['弓状线以上', 'above', '上面'], fn: () => { toggleAbove(); return '切换弓状线以上'; } },
+  { patterns: ['弓状线以下', 'below', '下面'], fn: () => { toggleBelow(); return '切换弓状线以下'; } },
+  { patterns: ['横截面', '截面', '切面', 'cross'], fn: () => { toggleCrossSection(); return '切换横截面'; } },
+  { patterns: ['标注', '标签', '文字', 'label'], fn: () => { toggleLabels(); return '切换标注'; } },
+  { patterns: ['滑动', '动画', '过渡', 'slice', 'animate'], fn: () => { animateSlice(); return '滑动截面过渡'; } },
+  { patterns: ['旋转', '转', 'rotate'], fn: () => { 
+    controls.autoRotate = !controls.autoRotate; 
+    return controls.autoRotate ? '自动旋转开' : '自动旋转关';
+  }},
+  { patterns: ['前层', '鞘前层', 'anterior'], fn: () => {
+    updateStatus('🔍 鞘前层：弓状线以上=外斜+内斜前层；弓状线以下=外斜+内斜+腹横肌全部在前');
+    return '鞘前层构成';
+  }},
+  { patterns: ['后层', '鞘后层', 'posterior'], fn: () => {
+    updateStatus('🔍 鞘后层：弓状线以上=内斜后层+腹横肌；弓状线以下=鞘后层缺如，腹直肌直接贴腹横筋膜');
+    return '鞘后层构成';
+  }},
+  { patterns: ['讲解', '解释', '教', 'teach'], fn: () => {
+    updateStatus('📖 弓状线以上：腹内斜肌腱膜分裂为前后层包裹腹直肌。\n弓状线以下：三层腱膜全部走行于腹直肌前方，后方无鞘。');
+    return '开始讲解';
+  }},
+  { patterns: ['医生', '临床', 'corner', '薄弱'], fn: () => {
+    updateStatus('🏥 临床意义：弓状线以下腹直肌鞘后层缺如，是腹壁薄弱区，切口疝好发部位');
+    return '临床关联';
+  }},
+  { patterns: ['隐藏', 'hide'], fn: () => {
+    aboveGroup.visible = false;
+    belowGroup.visible = false;
+    updateStatus('所有层次已隐藏');
+    return '已隐藏';
+  }},
+];
+
+function parseCommand(text) {
+  const lower = text.toLowerCase().trim();
+  for (const entry of commandMap) {
+    for (const pat of entry.patterns) {
+      if (lower.includes(pat.toLowerCase())) {
+        return entry.fn();
+      }
+    }
+  }
+  return null;
+}
+
+// DeepSeek API integration
+async function callDeepSeek(text) {
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey) return null;
+  
+  const systemPrompt = `你是一个解剖学教学3D控制助手。你的任务是将用户的中文自然语言指令解析为3D视图操作。
+
+可用操作列表（返回JSON数组）：
+1. {"action":"showAll"} - 完整展示左右对比
+2. {"action":"resetView"} - 复位视角
+3. {"action":"toggleAbove"} - 切换弓状线以上显示/隐藏
+4. {"action":"toggleBelow"} - 切换弓状线以下显示/隐藏
+5. {"action":"toggleCrossSection"} - 切换横截面显示
+6. {"action":"toggleLabels"} - 切换标注显示
+7. {"action":"animateSlice"} - 滑动截面动画
+8. {"action":"showSheath","type":"anterior"} - 显示鞘前层构成
+9. {"action":"showSheath","type":"posterior"} - 显示鞘后层构成
+10. {"action":"clinical"} - 显示临床意义
+11. {"action":"explain"} - 开始讲解
+12. {"action":"rotate"} - 切换自动旋转
+13. {"action":"status","text":"..."} - 显示自定义状态文字
+
+用户也可能只是提问。如果用户问问题而非发出指令，返回：
+{"action":"answer","text":"你的回答"}
+
+请只返回JSON数组。`;
+
+  try {
+    const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+      })
+    });
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return null;
+    
+    // Parse JSON from response
+    const jsonMatch = content.match(/\[[\s\S]*?\]/);
+    if (!jsonMatch) return null;
+    const commands = JSON.parse(jsonMatch[0]);
+    return commands;
+  } catch(e) {
+    console.warn('DeepSeek API error:', e);
+    return null;
+  }
+}
+
+async function executeDeepSeekCommands(commands) {
+  if (!Array.isArray(commands)) return;
+  for (const cmd of commands) {
+    switch(cmd.action) {
+      case 'showAll': showAll(); break;
+      case 'resetView': resetView(); break;
+      case 'toggleAbove': toggleAbove(); break;
+      case 'toggleBelow': toggleBelow(); break;
+      case 'toggleCrossSection': toggleCrossSection(); break;
+      case 'toggleLabels': toggleLabels(); break;
+      case 'animateSlice': animateSlice(); break;
+      case 'rotate': controls.autoRotate = !controls.autoRotate; break;
+      case 'explain':
+        updateStatus('📖 弓状线以上：腹内斜肌腱膜分裂为前后层包裹腹直肌。弓状线以下：三层腱膜全部走行于腹直肌前方，后方无鞘。弓状线是此过渡的分界线。');
+        break;
+      case 'clinical':
+        updateStatus('🏥 临床意义：弓状线以下腹直肌鞘后层缺如，是腹壁薄弱区。下腹部手术切口（如阑尾切除术、剖宫产）在此区域操作时需注意切口的层次入路和疝的预防。');
+        break;
+      case 'showSheath':
+        if (cmd.type === 'anterior') {
+          updateStatus('🔍 鞘前层：弓状线以上 = 腹外斜肌腱膜 + 腹内斜肌腱膜前层；弓状线以下 = 腹外斜肌腱膜 + 腹内斜肌腱膜 + 腹横肌腱膜');
+        } else {
+          updateStatus('🔍 鞘后层：弓状线以上 = 腹内斜肌腱膜后层 + 腹横肌腱膜；弓状线以下 = 鞘后层缺如');
+        }
+        break;
+      case 'answer':
+        updateStatus('💬 ' + cmd.text);
+        break;
+      case 'status':
+        updateStatus(cmd.text || '');
+        break;
+    }
+  }
+}
+
+// Main command handler
+window.handleTextCommand = async function(text) {
+  if (!text || !text.trim()) return;
+  document.getElementById('text-input').value = '';
+  
+  // First try keyword matching (fast, no API needed)
+  const result = parseCommand(text);
+  if (result) {
+    updateStatus('✅ ' + (typeof result === 'string' ? result : ''));
+    return;
+  }
+  
+  // Try DeepSeek if API key is configured
+  const commands = await callDeepSeek(text);
+  if (commands) {
+    await executeDeepSeekCommands(commands);
+  } else {
+    // Neither keywords nor API matched
+    updateStatus('🤔 没理解"' + text + '"\n试试：弓状线以上/以下、滑动截面、前层/后层、讲解、临床');
+  }
+};
+
+// ─── Voice Recognition ───
+let recognition = null;
+let isListening = false;
+const voiceBtn = document.getElementById('voice-btn');
+
+export function initVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    voiceBtn.disabled = true;
+    voiceBtn.title = '浏览器不支持语音识别';
+    updateStatus('⚠ 当前浏览器不支持语音识别，请使用Chrome');
+    return;
+  }
+  
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  
+  recognition.onresult = async (event) => {
+    const text = event.results[0][0].transcript;
+    updateStatus('🎤 听到: "' + text + '"', '正在处理...');
+    await window.handleTextCommand(text);
+    stopListening();
+  };
+  
+  recognition.onerror = (event) => {
+    console.warn('Voice error:', event.error);
+    if (event.error === 'not-allowed') {
+      updateStatus('⚠ 麦克风被拒绝，请在浏览器设置中允许麦克风');
+    } else {
+      updateStatus('⚠ 语音识别错误: ' + event.error);
+    }
+    stopListening();
+  };
+  
+  recognition.onend = () => {
+    // Only stop if we're not supposed to be listening
+    if (isListening && !voiceBtn.classList.contains('listening')) {
+      // Restart if still listening
+      try { recognition.start(); } catch(e) {}
+    } else {
+      stopListening();
+    }
+  };
+}
+
+function startListening() {
+  if (!recognition) { initVoice(); if (!recognition) return; }
+  try {
+    recognition.start();
+    isListening = true;
+    voiceBtn.classList.add('listening');
+    voiceBtn.textContent = '🔴 聆听中';
+    updateStatus('🎤 请说话...', '说完自动识别');
+  } catch(e) {
+    console.warn(e);
+  }
+}
+
+function stopListening() {
+  isListening = false;
+  voiceBtn.classList.remove('listening');
+  voiceBtn.textContent = '🎤 语音';
+}
+
+window.toggleVoice = function() {
+  if (isListening) {
+    stopListening();
+    if (recognition) recognition.stop();
+  } else {
+    startListening();
+  }
+};
+
+// Init voice
+initVoice();
+
+// ─── Resize ───
+window.addEventListener('resize', () => {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+});
+
+// ─── Animation Loop ───
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+animate();
+
+// Initial state
+if (isMobile) {
+  updateStatus('📱 触点: 滑动截面/弓上线/弓下线/前层/后层/讲解/临床', '或点击下方按钮');
+} else {
+  const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  updateStatus('✅ 准备好了' + (hasSpeech ? ' 🎤说"滑动截面"试试' : ''), '或点击按钮 / 输入指令');
+}
+
+// Expose for window access
+window.__scene = scene;
+window.__camera = camera;
+
+// Log available commands
+console.log('🎯 AI解剖教学已启动。试试说：滑动截面、弓状线以上、前层、后层、讲解、临床');
+</script>
+</body>
+</html>
