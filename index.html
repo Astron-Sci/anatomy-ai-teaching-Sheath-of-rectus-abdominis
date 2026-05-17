@@ -112,10 +112,9 @@ const uy = HH/2; // center of upper half
 
 mg.add(mkBox(C.eo, HW, HH, LT, 0, uy, D-LT/2));
 mg.add(mkBox(C.io, HW, HH, LT, 0, uy, D-LT*1.5-0.02));
-// rectus is here (center) - broad flat muscle spanning left-right
+// rectus is here (center)
 mg.add(mkBox(C.io, HW, HH, LT, 0, uy, -D+LT*2.5+0.04)); // IO posterior, SAME color
 mg.add(mkBox(C.ta, HW, HH, LT, 0, uy, -D+LT*1.5+0.02));
-mg.add(mkBox(C.fascia, HW, HH, LT*0.3, 0, uy, -D+LT*0.3, 0.3));
 
 // ─── Lower: Below Arcuate Line ───
 // Front→back: EO → IO_ant → IO_post → TA → RECTUS → fascia
@@ -123,10 +122,13 @@ const ly = -HH/2;
 
 mg.add(mkBox(C.eo, HW, HH, LT, 0, ly, D-LT/2));
 mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.02));  // IO anterior
-mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*2.5-0.04));  // IO posterior - BOTH on same side!
-mg.add(mkBox(C.ta, HW, HH, LT, 0, ly, D-LT*3.5-0.06));
+// IO posterior: directly adjacent to IO anterior (gap=0.04, layers touching)
+mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.06));  // IO posterior - virtually touching anterior
+mg.add(mkBox(C.ta, HW, HH, LT, 0, ly, D-LT*1.5-0.10));
 // rectus is here (center) - same single continuous muscle
-mg.add(mkBox(C.fascia, HW, HH, LT*0.3, 0, ly, -D+LT*0.15, 0.3));
+
+// ─── Single continuous fascia (no misalignment at arcuate line) ───
+mg.add(mkBox(C.fascia, HW, HH*2, LT*0.3, 0, 0, -D+LT*0.2, 0.3));
 
 // ─── Arcuate Line (horizontal red line at y=0) ───
 const arcPts=[
@@ -174,31 +176,34 @@ function lblWithLine(text, labelX, labelY, labelZ, targetX, targetY, targetZ, co
   );
   mg.add(line);
 
-  return lbl;
+  return { label: lbl, line: line };
 }
 
 const LGs=[];
+const LNs=[]; // leader lines
+function addLbl(text, lx, ly, lz, tx, ty, tz, c, s){
+  const r=lblWithLine(text,lx,ly,lz,tx,ty,tz,c,s);
+  LGs.push(r.label);
+  LNs.push(r.line);
+}
 
-// --- Left side labels (above arcuate) ---
 const lxL = -HW-1.1;
 const lxR = HW+1.1;
 
-LGs.push(lblWithLine('弓状线以上', lxL, HH*0.65, D*0.6, 0, HH*0.65, D*0.3, '#ff6b6b', '13px'));
-LGs.push(lblWithLine('弓状线以下', lxL, -HH*0.65, D*0.6, 0, -HH*0.65, D*0.3, '#ff6b6b', '13px'));
-LGs.push(lblWithLine('弓状线', lxL, 0, -D-0.5, 0, 0, -D-0.05, '#e74c3c', '12px'));
+// -- Top of model: above arcuate labels (left side) --
+addLbl('弓状线', lxL, 0, -D-0.5, 0, 0, -D-0.05, '#e74c3c', '13px');
 
-LGs.push(lblWithLine('腹外斜肌腱膜', lxL, HH*0.5, D*0.9, 0, HH*0.7, D-LT, '#b0b0b0'));
-LGs.push(lblWithLine('腹内斜肌腱膜(前层)', lxL, HH*0.25, D*0.9, 0, HH*0.5, D-LT*1.5, '#d4a373'));
-LGs.push(lblWithLine('腹直肌', lxL, HH*0.05, D*0.9, 0, HH*0.15, 0, '#e8845a'));
-LGs.push(lblWithLine('腹内斜肌腱膜(后层)', lxL, -HH*0.15, D*0.9, 0, HH*0.35, -D+LT*2.5, '#d4a373'));
-LGs.push(lblWithLine('腹横肌腱膜', lxL, -HH*0.35, D*0.9, 0, HH*0.2, -D+LT*1.5, '#7a7a7a'));
+addLbl('腹外斜肌腱膜', lxL, HH*0.5, D*0.9, 0, HH*0.7, D-LT, '#b0b0b0');
+addLbl('腹内斜肌腱膜(前层)', lxL, HH*0.2, D*0.9, 0, HH*0.5, D-LT*1.5, '#d4a373');
+addLbl('腹直肌', lxL, HH*0.0, D*0.9, 0, 0, 0, '#e8845a');
+addLbl('腹内斜肌腱膜(后层)', lxL, -HH*0.2, D*0.9, 0, HH*0.35, -D+LT*2.5, '#d4a373');
+addLbl('腹横肌腱膜', lxL, -HH*0.4, D*0.9, 0, HH*0.2, -D+LT*1.5, '#7a7a7a');
 
-// --- Right side labels (below arcuate) ---
-LGs.push(lblWithLine('腹外斜肌腱膜', lxR, -HH*0.3, D*0.9, 0, -HH*0.5, D-LT, '#b0b0b0'));
-LGs.push(lblWithLine('腹内斜肌腱膜(前后层)', lxR, -HH*0.55, D*0.9, 0, -HH*0.7, D-LT*2, '#d4a373','12px'));
-LGs.push(lblWithLine('腹横肌腱膜', lxR, -HH*0.8, D*0.9, 0, -HH*0.85, D-LT*3.5, '#7a7a7a'));
-LGs.push(lblWithLine('腹直肌', lxR, -HH*0.2, D*0.9, 0, -HH*0.2, 0, '#e8845a'));
-LGs.push(lblWithLine('(鞘后层缺如)', lxR, -HH*1.0, D*0.5, 0, -HH, -D*0.3, '#666', '11px'));
+// -- Bottom: below arcuate labels (right side) --
+addLbl('腹外斜肌腱膜', lxR, -HH*0.3, D*0.9, 0, -HH*0.5, D-LT, '#b0b0b0');
+addLbl('腹内斜肌腱膜(前后层) ↓', lxR, -HH*0.55, D*0.9, 0, -HH*0.7, D-LT*1.5-0.03, '#d4a373','12px');
+addLbl('腹横肌腱膜', lxR, -HH*0.8, D*0.9, 0, -HH*0.85, D-LT*1.5-0.10, '#7a7a7a');
+addLbl('(鞘后层缺如)', lxR, -HH*1.0, D*0.5, 0, -HH, -D*0.3, '#666', '11px');
 
 // ─── Slice Plane ───
 const sp=new THREE.Mesh(
@@ -226,7 +231,9 @@ window.rst=()=>{
   upd('腹直肌鞘 · 弓状线 · 一体模型');
 };
 window.tl=()=>{
-  const v=!LGs[0].visible;LGs.forEach(l=>l.visible=v);
+  const v=!LGs[0].visible;
+  LGs.forEach(l=>l.visible=v);
+  LNs.forEach(n=>n.visible=v);
   upd(v?'标注开':'标注关');
 };
 window.as=()=>{
