@@ -104,40 +104,10 @@ sc.add(new THREE.HemisphereLight(0x4466aa,0x222244,0.4));
 // ═══════════════════════════════════════
 const mg=new THREE.Group();sc.add(mg);
 
-// ─── Coordinate Axes ───
-const axLen=4.5;
-function addAxis(dir,color,label,labelOffset){
-  const arrow=new THREE.ArrowHelper(dir,new THREE.Vector3(0,0,0),axLen,color,0.3,0.15);
-  mg.add(arrow);
-  const d=document.createElement('div');d.textContent=label;
-  d.style.color='#'+color.toString(16).padStart(6,'0');
-  d.style.fontSize='16px';d.style.fontWeight='bold';
-  d.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
-  d.style.background='rgba(0,0,0,0.6)';d.style.padding='2px 10px';
-  d.style.borderRadius='6px';d.style.border='1px solid #'+(color).toString(16).padStart(6,'0');
-  const l=new CSS2DObject(d);
-  l.position.set(dir.x*axLen+labelOffset.x,dir.y*axLen+labelOffset.y,dir.z*axLen+labelOffset.z);
-  mg.add(l);
-}
-addAxis(new THREE.Vector3(1,0,0),0xff4444,'X 右',new THREE.Vector3(0.3,0,0));
-addAxis(new THREE.Vector3(0,1,0),0x44ff44,'Y 上',new THREE.Vector3(0,0.3,0));
-addAxis(new THREE.Vector3(0,0,1),0x4488ff,'Z 前',new THREE.Vector3(0,0,0.3));
-
 const HW=2.8,
       D=2.2,
       HH=2.8,
       LT=0.22;
-
-// Direction labels (after HH is defined)
-const dirs=[['前面 (腹外斜肌侧)',new THREE.Vector3(0,HH+0.5,2.8),'#4488ff'],['后面 (腹横筋膜侧)',new THREE.Vector3(0,HH+0.5,-2.8),'#ff8844']];
-for(const[txt,pos,clr]of dirs){
-  const lb=document.createElement('div');lb.textContent=txt;
-  lb.style.color=clr;lb.style.fontSize='13px';lb.style.fontWeight='600';
-  lb.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
-  lb.style.background='rgba(0,0,0,0.65)';lb.style.padding='3px 12px';
-  lb.style.borderRadius='8px';lb.style.border='1px solid '+clr;
-  const l=new CSS2DObject(lb);l.position.copy(pos);mg.add(l);
-}
 
 const C={eo:0xb0b0b0, io:0xd4a373, ta:0x7a7a7a, ra:0xe8845a, fascia:0x95a5a6};
 
