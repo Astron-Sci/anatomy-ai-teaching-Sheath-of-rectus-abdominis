@@ -354,7 +354,7 @@ window.as=()=>{
     return;
   }
   anim=true;sp.visible=sb.visible=true;csPanel.classList.add('show');
-  const ss=-HH*1.1,es=HH*1.1,dur=3000,t0=performance.now();
+  const ss=HH*1.1,es=-HH*1.1,dur=3000,t0=performance.now();
   function step(t){
     const p=Math.min((t-t0)/dur,1),ee=p<0.5?2*p*p:-1+(4-2*p)*p,y=ss+(es-ss)*ee;
     sp.position.y=y;sb.position.y=y;drawSplitSections(y>0?'above':'below');
@@ -457,8 +457,9 @@ window.hc=async function(t){if(!t||!t.trim())return;
     {p:['后层','鞘后层'],f:()=>{upd('🔍 鞘后层：弓上线以上=内斜后层+腹横肌(有鞘后层) | 弓线以下=鞘后层缺如');return'鞘后层'}},
     {p:['讲解','教','学'],f:()=>{upd('📖 弓状线以上：腹内斜肌腱膜分裂为前后两层包裹腹直肌。弓状线以下：内斜腱膜不再分裂，三层腱膜全部走行于腹直肌前方。弓状线可理解为腹横肌腱膜上的"裂口"，腹直肌从此穿过。');return'讲解'}},
     {p:['临床','疝','薄弱'],f:()=>{upd('🏥 弓状线以下腹直肌鞘后层缺如，腹壁薄弱。下腹部手术(阑尾、剖宫产)后易发切口疝。');return'临床意义'}},
+    {p:['弓状线'],f:()=>{ahl=!ahl;arcPlane.visible=ahl;arcBorder.visible=ahl;ad.style.borderColor=ahl?'#fff':'#e74c3c';ad.style.background=ahl?'rgba(255,255,255,0.25)':'rgba(0,0,0,0.75)';ad.style.boxShadow=ahl?'0 0 12px #e74c3c':'none';upd(ahl?'📐 弓状线截面 已显示':'📐 弓状线截面 已隐藏');}},
   ];
-  for(const e of m)for(const p of e.p)if(l.includes(p)){upd('✅ '+e.f());return}
+  for(const e of m)for(const p of e.p)if(l.includes(p)){e.f();return}
   const ds=await callDeepSeek(t);if(ds){await execDeepSeek(ds);return;}
   upd('🤔 请试试: 滑动截面/前层/后层/讲解/临床');
 };
