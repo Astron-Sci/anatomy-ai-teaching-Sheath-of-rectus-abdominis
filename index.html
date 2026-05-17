@@ -33,9 +33,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;overflow:hid
 
 <!-- Cross-section panel -->
 <div id="cs-panel">
-  <div id="cs-header">📐 弓状线上下截面</div>
+  <div id="cs-header">📐 弓状线上下截面 <span id="cs-zoom" style="font-size:11px;color:#888">100%</span></div>
   <canvas id="cs-canvas" width="270" height="270"></canvas>
-  <input type="range" id="cs-slider" min="-2.8" max="2.8" step="0.01" value="0" />
+  <div style="display:flex;gap:4px;margin-top:4px;align-items:center">
+    <button onclick="csZoomOut()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);color:#eee;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;min-height:28px">−</button>
+    <input type="range" id="cs-slider" min="-2.8" max="2.8" step="0.01" value="0" style="flex:1;accent-color:#4a9eff;height:5px" />
+    <button onclick="csZoomIn()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);color:#eee;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;min-height:28px">+</button>
+  </div>
 </div>
 <style>
 #cs-panel{
@@ -416,6 +420,7 @@ const csPanel=document.getElementById('cs-panel');
 const csCanvas=document.getElementById('cs-canvas');
 const csCtx=csCanvas.getContext('2d');
 const csW=270,csH=270;
+let csZoomLevel=1.0;
 
 function drawSplitSections(activeSide){
   csCtx.clearRect(0,0,csW,csH);
@@ -424,7 +429,7 @@ function drawSplitSections(activeSide){
   csCtx.strokeStyle='#bbb';csCtx.lineWidth=0.8;
   for(let i=0;i<csW;i+=20){csCtx.beginPath();csCtx.moveTo(i,0);csCtx.lineTo(i,csH);csCtx.stroke();}
   for(let i=0;i<csH;i+=20){csCtx.beginPath();csCtx.moveTo(0,i);csCtx.lineTo(csW,i);csCtx.stroke();}
-  const cx=csW/2,barW=250,barX=10,zMin=-1.5,zMax=1.5;
+  const cx=csW/2,barW=250,barX=10,zMin=-1.5/csZoomLevel,zMax=1.5/csZoomLevel;
   const scale=(csH-60)/(zMax-zMin);
   const yOff=38,gapPx=0.05*scale;
   
@@ -463,7 +468,10 @@ function drawSplitSections(activeSide){
 drawSplitSections('below');
 
 const csSlider=document.getElementById('cs-slider');
-csSlider.oninput=()=>{const y=parseFloat(csSlider.value);drawSplitSections(y>0?'above':'below');sp.visible=true;sb.visible=true;sp.position.y=y;sb.position.y=y;};
+csSlider.oninput=()=>{const y=parseFloat(csSlider.value);csCanvas.dataset.side=y>0?'above':'below';drawSplitSections(csCanvas.dataset.side);sp.visible=true;sb.visible=true;sp.position.y=y;sb.position.y=y;};
+
+window.csZoomIn=()=>{csZoomLevel=Math.min(csZoomLevel*1.3,5);document.getElementById('cs-zoom').textContent=Math.round(csZoomLevel*100)+'%';drawSplitSections(csCanvas.dataset.side||'below');};
+window.csZoomOut=()=>{csZoomLevel=Math.max(csZoomLevel/1.3,0.3);document.getElementById('cs-zoom').textContent=Math.round(csZoomLevel*100)+'%';drawSplitSections(csCanvas.dataset.side||'below');};
 
 function loop(){requestAnimationFrame(loop);or.update();r.render(sc,cam);lr.render(sc,cam)}loop();
 upd('腹直肌鞘 · 弓状线 | 上段:完整鞘 | 下段:鞘后层缺如');
