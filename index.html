@@ -6,7 +6,7 @@
 <title>腹直肌鞘 · 弓状线上下层次</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f0f1a;overflow:hidden;color:#eee}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;overflow:hidden;color:#eee}
 #c{width:100vw;height:100vh;display:block}
 #panel{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:5px;align-items:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);padding:8px 12px;border-radius:14px;border:1px solid rgba(255,255,255,0.08);max-width:96vw;z-index:100}
 #cmd{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
@@ -30,6 +30,25 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f0f1a;overflow:hid
 <body>
 <div id="s"><span id="st">腹直肌鞘 · 弓状线 · 一体模型</span><span class="h" id="sh">鼠标拖拽旋转 · 滚轮缩放</span></div>
 <button id="lt" onclick="document.getElementById('lg').classList.toggle('show')">📖</button>
+
+<!-- Cross-section panel -->
+<div id="cs-panel">
+  <div id="cs-header">📐 弓状线上下截面</div>
+  <canvas id="cs-canvas" width="270" height="270"></canvas>
+  <input type="range" id="cs-slider" min="-2.8" max="2.8" step="0.01" value="0" />
+</div>
+<style>
+#cs-panel{
+  position:fixed;left:12px;bottom:80px;z-index:90;
+  background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);
+  padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);
+  display:none;width:290px;
+}
+#cs-panel.show{display:block}
+#cs-header{font-size:13px;font-weight:600;color:#4a9eff;margin-bottom:5px;text-align:center}
+#cs-canvas{width:100%;height:auto;border-radius:6px;background:#0a0a14}
+#cs-slider{width:100%;margin-top:6px;accent-color:#4a9eff;height:5px}
+</style>
 <div id="lg">
   <div class="i"><span class="c" style="background:#b0b0b0"></span> 腹外斜肌腱膜</div>
   <div class="i"><span class="c" style="background:#d4a373"></span> 腹内斜肌腱膜(前/后层同色)</div>
@@ -42,6 +61,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f0f1a;overflow:hid
     <button onclick="rst()">🔄复位</button>
     <button onclick="as()" class="p">▶滑动截面</button>
     <button onclick="tl()">🏷标注</button>
+    <button onclick="toggleSplit()">合并/分离</button>
   </div>
   <div id="ir">
     <input id="ti" placeholder="输入: 滑动截面/前层/后层/讲解/临床" />
@@ -56,12 +76,12 @@ import*as THREE from 'three';
 import{OrbitControls}from'three/addons/controls/OrbitControls.js';
 import{CSS2DRenderer,CSS2DObject}from'three/addons/renderers/CSS2DRenderer.js';
 
-const ct=document.getElementById('c'),sc=new THREE.Scene();sc.background=new THREE.Color(0x0f0f1a);
+const ct=document.getElementById('c'),sc=new THREE.Scene();sc.background=new THREE.Color(0x1a1a2e);
 const cam=new THREE.PerspectiveCamera(28,ct.clientWidth/ct.clientHeight,0.1,100);
 cam.position.set(10,4,11);
 const r=new THREE.WebGLRenderer({antialias:true});
 r.setSize(ct.clientWidth,ct.clientHeight);r.setPixelRatio(Math.min(window.devicePixelRatio,2));
-r.shadowMap.enabled=true;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.0;
+r.shadowMap.enabled=false;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.0;
 ct.appendChild(r.domElement);
 const lr=new CSS2DRenderer();lr.setSize(ct.clientWidth,ct.clientHeight);
 lr.domElement.style.position='absolute';lr.domElement.style.top='0';lr.domElement.style.left='0';
@@ -70,7 +90,7 @@ const or=new OrbitControls(cam,r.domElement);
 or.target.set(0,0,0);or.enableDamping=true;or.dampingFactor=0.08;or.minDistance=4;or.maxDistance=25;or.update();
 
 sc.add(new THREE.AmbientLight(0x404060,0.5));
-const kl=new THREE.DirectionalLight(0xffffff,2.5);kl.position.set(8,10,6);kl.castShadow=true;sc.add(kl);
+const kl=new THREE.DirectionalLight(0xffffff,2.5);kl.position.set(8,10,6);sc.add(kl);
 sc.add(new THREE.DirectionalLight(0x88bbff,0.6).position.set(-5,6,-6));
 sc.add(new THREE.DirectionalLight(0xffffff,0.5).position.set(-4,3,8));
 sc.add(new THREE.HemisphereLight(0x4466aa,0x222244,0.4));
@@ -84,10 +104,40 @@ sc.add(new THREE.HemisphereLight(0x4466aa,0x222244,0.4));
 // ═══════════════════════════════════════
 const mg=new THREE.Group();sc.add(mg);
 
-const HW=2.8, // half-width (left-right)
-      D=2.2,  // half-depth (front-back)
-      HH=2.8,  // half-height of each section (total height = 5.6)
-      LT=0.22; // layer thickness
+// ─── Coordinate Axes ───
+const axLen=4.5;
+function addAxis(dir,color,label,labelOffset){
+  const arrow=new THREE.ArrowHelper(dir,new THREE.Vector3(0,0,0),axLen,color,0.3,0.15);
+  mg.add(arrow);
+  const d=document.createElement('div');d.textContent=label;
+  d.style.color='#'+color.toString(16).padStart(6,'0');
+  d.style.fontSize='16px';d.style.fontWeight='bold';
+  d.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
+  d.style.background='rgba(0,0,0,0.6)';d.style.padding='2px 10px';
+  d.style.borderRadius='6px';d.style.border='1px solid #'+(color).toString(16).padStart(6,'0');
+  const l=new CSS2DObject(d);
+  l.position.set(dir.x*axLen+labelOffset.x,dir.y*axLen+labelOffset.y,dir.z*axLen+labelOffset.z);
+  mg.add(l);
+}
+addAxis(new THREE.Vector3(1,0,0),0xff4444,'X 右',new THREE.Vector3(0.3,0,0));
+addAxis(new THREE.Vector3(0,1,0),0x44ff44,'Y 上',new THREE.Vector3(0,0.3,0));
+addAxis(new THREE.Vector3(0,0,1),0x4488ff,'Z 前',new THREE.Vector3(0,0,0.3));
+
+const HW=2.8,
+      D=2.2,
+      HH=2.8,
+      LT=0.22;
+
+// Direction labels (after HH is defined)
+const dirs=[['前面 (腹外斜肌侧)',new THREE.Vector3(0,HH+0.5,2.8),'#4488ff'],['后面 (腹横筋膜侧)',new THREE.Vector3(0,HH+0.5,-2.8),'#ff8844']];
+for(const[txt,pos,clr]of dirs){
+  const lb=document.createElement('div');lb.textContent=txt;
+  lb.style.color=clr;lb.style.fontSize='13px';lb.style.fontWeight='600';
+  lb.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
+  lb.style.background='rgba(0,0,0,0.65)';lb.style.padding='3px 12px';
+  lb.style.borderRadius='8px';lb.style.border='1px solid '+clr;
+  const l=new CSS2DObject(lb);l.position.copy(pos);mg.add(l);
+}
 
 const C={eo:0xb0b0b0, io:0xd4a373, ta:0x7a7a7a, ra:0xe8845a, fascia:0x95a5a6};
 
@@ -95,42 +145,110 @@ function mkBox(clr,w,h,d,x,y,z,op=1){
   const g=new THREE.BoxGeometry(w,h,d);
   const m=new THREE.MeshPhysicalMaterial({
     color:clr,roughness:0.5,metalness:0.0,
-    transparent:op<1,opacity:op,clearcoat:0.05
+    transparent:op<1,opacity:op,
+    emissive:clr,emissiveIntensity:0.15,
+    clearcoat:0.05
   });
   const me=new THREE.Mesh(g,m);me.position.set(x,y,z);
-  me.castShadow=true;return me;
+  me.castShadow=false;return me;
 }
 
-// ─── SINGLE continuous rectus abdominis ───
-// Rectus: rotated 90° along its long axis → broad (left-right) and thin (front-back)
-// width = HW*0.6 (broad), depth = 0.4 (thin strip)
-mg.add(mkBox(C.ra, HW*0.6, HH*2, 0.4, 0, 0, 0));
+// Folded box: V-shaped crease at center, with end caps
+function foldedBox(clr,w,h,d,px,py,pz,fold,op=1){
+  const seg=20,pos=[],idx=[];
+  const hw=w/2,hh=h/2,hd=d/2;
+  for(let iy=0;iy<=1;iy++){
+    const y=-hh+iy*h;
+    for(let ix=0;ix<=seg;ix++){
+      const x=-hw+(ix/seg)*w,t=ix/seg;
+      const crv=fold*(1-Math.abs(2*t-1));
+      pos.push(x,y,pz+hd+crv);
+      pos.push(x,y,pz-hd+crv);
+    }
+  }
+  for(let ix=0;ix<seg;ix++){
+    const a=ix*2,b=ix*2+2,c=(seg+1)*2+ix*2,d=c+2;
+    idx.push(a,b,d,a,d,c);
+    idx.push(a+1,c+1,d+1,a+1,d+1,b+1);
+  }
+  // End caps (left & right)
+  const A=0,B=1,C=(seg+1)*2,D=C+1;
+  idx.push(A,D,C,A,B,D);
+  const Ar=seg*2,Br=seg*2+1,Cr=(seg+1)*2+seg*2,Dr=Cr+1;
+  idx.push(Ar,Cr,Dr,Ar,Dr,Br);
+  // Top & bottom caps
+  const t0=(seg+1)*2;
+  for(let ix=0;ix<seg;ix++){
+    const a=ix*2,b=ix*2+1,c=(ix+1)*2,d=(ix+1)*2+1;
+    idx.push(a,c,d,a,d,b); // bottom
+    const ta=t0+ix*2,tb=t0+ix*2+1,tc=t0+(ix+1)*2,td=t0+(ix+1)*2+1;
+    idx.push(ta,tb,td,ta,td,tc); // top
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshPhysicalMaterial({
+    color:clr,roughness:0.5,metalness:0.0,
+    transparent:op<1,opacity:op,
+    emissive:clr,emissiveIntensity:0.15,
+    side:THREE.DoubleSide,flatShading:true,clearcoat:0.05
+  });
+  const me=new THREE.Mesh(geo,mat);
+  me.position.set(px,py,0);
+  me.castShadow=false;
+  return me;
+}
+
+const foldAmt=0.333;
+
+// ─── Rectus abdominis: 2 equal-height flat diamonds ───
+function makeDiamond(yPos){
+  const g=new THREE.CylinderGeometry(1.2, 1.2, HH, 4);
+  const m=new THREE.MeshPhysicalMaterial({color:C.ra,roughness:0.5,metalness:0.0,emissive:C.ra,emissiveIntensity:0.15,clearcoat:0.05});
+  const me=new THREE.Mesh(g,m);
+  me.position.set(0,yPos,0);
+  me.rotation.y=0;
+  me.scale.set(1.0,1.0,0.6/2.4);
+  me.castShadow=false;
+  return me;
+}
+const raTop=makeDiamond(HH/2);mg.add(raTop);
+const raBot=makeDiamond(-HH/2);mg.add(raBot);
+raTop.position.z=0;
+raBot.position.z=0;
+
+// Groups for split animation
+const frontGroup=new THREE.Group();mg.add(frontGroup);
+const backGroup=new THREE.Group();mg.add(backGroup);
+
+// Mesh reference containers for label highlighting
+const meshRefs={};
+function track(parent,...meshes){const arr=[];meshes.forEach(m=>{parent.add(m);arr.push(m);});return arr;}
 
 // ─── Upper: Above Arcuate Line ───
-// Front→back: EO → IO_ant → RECTUS → IO_post → TA → fascia
-const uy = HH/2; // center of upper half
-
-mg.add(mkBox(C.eo, HW, HH, LT, 0, uy, D-LT/2));
-mg.add(mkBox(C.io, HW, HH, LT, 0, uy, D-LT*1.5-0.02));
-// rectus is here (center)
-mg.add(mkBox(C.io, HW, HH, LT, 0, uy, -D+LT*2.5+0.04)); // IO posterior, SAME color
-mg.add(mkBox(C.ta, HW, HH, LT, 0, uy, -D+LT*1.5+0.02));
+const uy = HH/2;
+// front
+meshRefs.eoAbove=track(frontGroup,foldedBox(C.eo, HW, HH, LT, 0, uy, D-LT/2, foldAmt),mkBox(C.eo, 1.4, HH, LT, -2.1, uy, D-LT/2),mkBox(C.eo, 1.4, HH, LT, 2.1, uy, D-LT/2));
+meshRefs.ioAntAbove=track(frontGroup,foldedBox(C.io, HW, HH, LT, 0, uy, D-LT*1.5-0.02, foldAmt),mkBox(C.io, 1.4, HH, LT, -2.1, uy, D-LT*1.5-0.02),mkBox(C.io, 1.4, HH, LT, 2.1, uy, D-LT*1.5-0.02));
+// back
+meshRefs.ioPostAbove=track(backGroup,foldedBox(C.io, HW, HH, LT, 0, uy, -D+LT*2.5+0.04, -foldAmt),mkBox(C.io, 1.4, HH, LT, -2.1, uy, -D+LT*2.5+0.04),mkBox(C.io, 1.4, HH, LT, 2.1, uy, -D+LT*2.5+0.04));
+meshRefs.taAbove=track(backGroup,foldedBox(C.ta, HW, HH, LT, 0, uy, -D+LT*1.5+0.02, -foldAmt),mkBox(C.ta, 1.4, HH, LT, -2.1, uy, -D+LT*1.5+0.02),mkBox(C.ta, 1.4, HH, LT, 2.1, uy, -D+LT*1.5+0.02));
 
 // ─── Lower: Below Arcuate Line ───
-// Front→back: EO → IO_ant → IO_post → TA → RECTUS → fascia
 const ly = -HH/2;
+// all front
+meshRefs.eoBelow=track(frontGroup,foldedBox(C.eo, HW, HH, LT, 0, ly, D-LT/2, foldAmt),mkBox(C.eo, 1.4, HH, LT, -2.1, ly, D-LT/2),mkBox(C.eo, 1.4, HH, LT, 2.1, ly, D-LT/2));
+meshRefs.ioBelow=track(frontGroup,foldedBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.02, foldAmt),mkBox(C.io, 1.4, HH, LT, -2.1, ly, D-LT*1.5-0.02),mkBox(C.io, 1.4, HH, LT, 2.1, ly, D-LT*1.5-0.02),foldedBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.24, foldAmt),mkBox(C.io, 1.4, HH, LT, -2.1, ly, D-LT*1.5-0.24),mkBox(C.io, 1.4, HH, LT, 2.1, ly, D-LT*1.5-0.24));
+meshRefs.taBelow=track(frontGroup,foldedBox(C.ta, HW, HH, LT, 0, ly, D-LT*1.5-0.48, foldAmt),mkBox(C.ta, 1.4, HH, LT, -2.1, ly, D-LT*1.5-0.48),mkBox(C.ta, 1.4, HH, LT, 2.1, ly, D-LT*1.5-0.48));
 
-mg.add(mkBox(C.eo, HW, HH, LT, 0, ly, D-LT/2));
-mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.02));  // IO anterior
-// IO posterior: directly adjacent to IO anterior (gap=0.04, layers touching)
-mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.06));  // IO posterior - virtually touching anterior
-mg.add(mkBox(C.ta, HW, HH, LT, 0, ly, D-LT*1.5-0.10));
-// rectus is here (center) - same single continuous muscle
+// ─── Fascia ───
+meshRefs.fascia=track(backGroup,foldedBox(C.fascia, HW, HH*2, LT*0.3, 0, 0, -D+LT*0.2, -foldAmt, 0.25),mkBox(C.fascia, 1.4, HH*2, LT*0.3, -2.1, 0, -D+LT*0.2, 0.25),mkBox(C.fascia, 1.4, HH*2, LT*0.3, 2.1, 0, -D+LT*0.2, 0.25));
 
-// ─── Single continuous fascia (no misalignment at arcuate line) ───
-mg.add(mkBox(C.fascia, HW, HH*2, LT*0.3, 0, 0, -D+LT*0.2, 0.3));
+// ─── Rectus ───
+meshRefs.rectus=[raTop,raBot];
 
-// ─── Arcuate Line (horizontal red line at y=0) ───
+// ─── Arcuate Line ───
 const arcPts=[
   new THREE.Vector3(-HW-0.1,0,-D-0.05),
   new THREE.Vector3(HW+0.1,0,-D-0.05),
@@ -153,62 +271,67 @@ for(let side=-1;side<=1;side+=2){
 }
 
 // ─── Helper: label with leader line ───
-function lblWithLine(text, labelX, labelY, labelZ, targetX, targetY, targetZ, color='#fff', s='12px'){
-  // Label
+function lblWithLine(text, labelX, labelY, labelZ, targetX, targetY, targetZ, color='#fff', s='14px'){
   const d=document.createElement('div');d.textContent=text;
-  d.style.color=color;d.style.fontSize=s;d.style.fontWeight='500';
-  d.style.textShadow='0 1px 4px rgba(0,0,0,0.9)';
-  d.style.background='rgba(0,0,0,0.7)';d.style.padding='2px 10px';
-  d.style.borderRadius='5px';d.style.border='1px solid '+color;
+  d.style.color=color;d.style.fontSize=s;d.style.fontWeight='600';
+  d.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
+  d.style.background='rgba(0,0,0,0.75)';d.style.padding='4px 14px';
+  d.style.borderRadius='8px';d.style.border='2px solid '+color;
   d.style.whiteSpace='nowrap';d.style.pointerEvents='none';
   const lbl=new CSS2DObject(d);
   lbl.position.set(labelX, labelY, labelZ);
   mg.add(lbl);
-
-  // Leader line
-  const linePts=[
-    new THREE.Vector3(targetX, targetY, targetZ),
-    new THREE.Vector3(labelX, labelY, labelZ),
-  ];
   const line=new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(linePts),
-    new THREE.LineBasicMaterial({color:color,transparent:true,opacity:0.35})
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(targetX,targetY,targetZ),new THREE.Vector3(labelX,labelY,labelZ)]),
+    new THREE.LineBasicMaterial({color:color,transparent:true,opacity:0.5,linewidth:2})
   );
   mg.add(line);
+  return{label:lbl,line:line};
 
   return { label: lbl, line: line };
 }
 
-const LGs=[];
-const LNs=[]; // leader lines
-function addLbl(text, lx, ly, lz, tx, ty, tz, c, s){
+const LGs=[],LNs=[],fLines=[],bLines=[],fLineZ0=[],bLineZ0=[];
+function addLbl(text, lx, ly, lz, tx, ty, tz, c, s, group, meshes){
   const r=lblWithLine(text,lx,ly,lz,tx,ty,tz,c,s);
   LGs.push(r.label);
   LNs.push(r.line);
+  if(group==='front'){fLines.push(r.line);fLineZ0.push(tz);}
+  else if(group==='back'){bLines.push(r.line);bLineZ0.push(tz);}
+  if(meshes&&meshes.length){
+    const el=r.label.element;
+    el.style.cursor='pointer';
+    el.style.pointerEvents='auto';
+    let hl=false;
+    el.onclick=()=>{
+      hl=!hl;
+      meshes.forEach(m=>{m.material.emissiveIntensity=hl?0.6:0.15;m.material.emissive.setHex(hl?0xffffff:m.material.color.getHex());});
+      el.style.borderColor=hl?'#fff':c;
+      el.style.background=hl?'rgba(255,255,255,0.25)':'rgba(0,0,0,0.75)';
+      el.style.boxShadow=hl?'0 0 12px '+c:'none';
+    };
+  }
 }
 
-const lxL = -HW-1.1;
-const lxR = HW+1.1;
+const lxL = HW+2.0;
 
-// -- Top of model: above arcuate labels (left side) --
+// All labels on the left side, organized neatly
 addLbl('弓状线', lxL, 0, -D-0.5, 0, 0, -D-0.05, '#e74c3c', '13px');
 
-addLbl('腹外斜肌腱膜', lxL, HH*0.5, D*0.9, 0, HH*0.7, D-LT, '#b0b0b0');
-addLbl('腹内斜肌腱膜(前层)', lxL, HH*0.2, D*0.9, 0, HH*0.5, D-LT*1.5, '#d4a373');
-addLbl('腹直肌', lxL, HH*0.0, D*0.9, 0, 0, 0, '#e8845a');
-addLbl('腹内斜肌腱膜(后层)', lxL, -HH*0.2, D*0.9, 0, HH*0.35, -D+LT*2.5, '#d4a373');
-addLbl('腹横肌腱膜', lxL, -HH*0.4, D*0.9, 0, HH*0.2, -D+LT*1.5, '#7a7a7a');
-
-// -- Bottom: below arcuate labels (right side) --
-addLbl('腹外斜肌腱膜', lxR, -HH*0.3, D*0.9, 0, -HH*0.5, D-LT, '#b0b0b0');
-addLbl('腹内斜肌腱膜(前后层) ↓', lxR, -HH*0.55, D*0.9, 0, -HH*0.7, D-LT*1.5-0.03, '#d4a373','12px');
-addLbl('腹横肌腱膜', lxR, -HH*0.8, D*0.9, 0, -HH*0.85, D-LT*1.5-0.10, '#7a7a7a');
-addLbl('(鞘后层缺如)', lxR, -HH*1.0, D*0.5, 0, -HH, -D*0.3, '#666', '11px');
+addLbl('腹外斜肌腱膜', lxL, HH*0.3, D*0.7, 0, 0, D-LT, '#b0b0b0','12px',undefined,meshRefs.eoAbove.concat(meshRefs.eoBelow));
+addLbl('腹内斜肌腱膜(前层)', lxL, HH*0.05, D*0.7, 0, HH*0.5, D-LT*1.5, '#d4a373','12px','front',meshRefs.ioAntAbove);
+addLbl('腹直肌', lxL, -HH*0.15, D*0.7, 0, 0, 0, '#e8845a',undefined,undefined,meshRefs.rectus);
+addLbl('腹内斜肌腱膜(后层)', lxL, -HH*0.38, D*0.7, 0, HH*0.35, -D+LT*2.5, '#d4a373','12px','back',meshRefs.ioPostAbove);
+addLbl('腹横肌腱膜(弓状线以上)', lxL, -HH*0.6, D*0.7, 0, HH*0.2, -D+LT*1.5, '#7a7a7a','12px','back',meshRefs.taAbove);
+addLbl('腹外斜肌腱膜(弓状线以下)', lxL, -HH*0.15, -D*0.5, 0, -HH*0.5, D-LT, '#b0b0b0','12px','front',meshRefs.eoBelow);
+addLbl('腹内斜肌腱膜', lxL, -HH*0.38, -D*0.5, 0, -HH*0.7, D-LT*1.5-0.03, '#d4a373','12px','front',meshRefs.ioBelow);
+addLbl('腹横肌腱膜(弓状线以下)', lxL, -HH*0.6, -D*0.5, 0, -HH*0.85, D-LT*1.5-0.10, '#7a7a7a','12px','front',meshRefs.taBelow);
+addLbl('(鞘后层缺如)', lxL, -HH*0.85, -D*0.5, 0, -HH, -D*0.3, '#666', '11px');
 
 // ─── Slice Plane ───
 const sp=new THREE.Mesh(
   new THREE.PlaneGeometry(HW*2+0.3,D*2+0.3),
-  new THREE.MeshPhysicalMaterial({color:0x4a9eff,transparent:true,opacity:0.04,side:THREE.DoubleSide,emissive:0x4a9eff,emissiveIntensity:0.03})
+  new THREE.MeshPhysicalMaterial({color:0x4a9eff,transparent:true,opacity:0.25,side:THREE.DoubleSide,emissive:0x4a9eff,emissiveIntensity:0.1})
 );
 sp.rotation.x=-Math.PI/2;sp.position.set(0,0,0);sp.visible=false;mg.add(sp);
 const sb=new THREE.Line(
@@ -216,7 +339,7 @@ const sb=new THREE.Line(
     new THREE.Vector3(-HW-0.05,0,-D-0.05),new THREE.Vector3(-HW-0.05,0,D+0.05),
     new THREE.Vector3(HW+0.05,0,D+0.05),new THREE.Vector3(HW+0.05,0,-D-0.05),
     new THREE.Vector3(-HW-0.05,0,-D-0.05)]),
-  new THREE.LineBasicMaterial({color:0x4a9eff,transparent:true,opacity:0.3})
+  new THREE.LineBasicMaterial({color:0x4a9eff,transparent:true,opacity:0.6})
 );
 sb.visible=false;mg.add(sb);
 
@@ -234,20 +357,76 @@ window.tl=()=>{
   const v=!LGs[0].visible;
   LGs.forEach(l=>l.visible=v);
   LNs.forEach(n=>n.visible=v);
+  const btn=document.querySelector('button[onclick="tl()"]');
+  btn.style.background=v?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.08)';
+  btn.style.borderColor=v?'#4a9eff':'rgba(255,255,255,0.08)';
   upd(v?'标注开':'标注关');
 };
 window.as=()=>{
-  if(anim)return;anim=true;sp.visible=sb.visible=true;
+  if(anim)return;
+  if(csPanel.classList.contains('show')){
+    csPanel.classList.remove('show');
+    sp.visible=false;sb.visible=false;
+    sp.position.y=0;sb.position.y=0;
+    upd('腹直肌鞘 · 弓状线 · 一体模型');
+    return;
+  }
+  anim=true;sp.visible=sb.visible=true;csPanel.classList.add('show');
   const ss=-HH*1.1,es=HH*1.1,dur=3000,t0=performance.now();
   function step(t){
     const p=Math.min((t-t0)/dur,1),ee=p<0.5?2*p*p:-1+(4-2*p)*p,y=ss+(es-ss)*ee;
-    sp.position.y=y;sb.position.y=y;
+    sp.position.y=y;sb.position.y=y;drawSplitSections(y>0?'above':'below');
+    
     if(p<1)requestAnimationFrame(step);else{anim=false;setTimeout(()=>{
       sp.position.y=0;sb.position.y=0;
       if(!sp.visible){sp.visible=false;sb.visible=false}
     },1500)}
   }
   requestAnimationFrame(step);upd('🔄 滑动截面：从上(弓上线以上)滑向下(弓线以下)...');
+};
+
+// ─── Split Animation ───
+let splitOpen=false,splitBusy=false;
+window.toggleSplit=()=>{
+  if(splitBusy)return;splitBusy=true;
+  splitOpen=!splitOpen;
+  const fTarget=splitOpen?1.55:-1.55;
+  const bTarget=splitOpen?1.69:-1.69;
+  const fStart=splitOpen?0:1.55;
+  const bStart=splitOpen?0:1.69;
+  const rTopT=splitOpen?0.19:0,rTopS=splitOpen?0:0.19;
+  const rBotT=splitOpen?-0.24:0,rBotS=splitOpen?0:-0.24;
+  const dur=2000,delay=1800,durR=200,t0=performance.now();
+  if(splitOpen){
+    // Opening: outer first, diamond later
+    function step(t){
+      const p=Math.min((t-t0)/dur,1);
+      const ee=p<0.5?2*p*p:-1+(4-2*p)*p;
+      const fv=fStart+(fTarget-fStart)*ee;
+      const bv=bStart+(bTarget-bStart)*ee;
+      frontGroup.position.z=-fv;
+      backGroup.position.z=bv;
+      fLines.forEach((l,i)=>{const p=l.geometry.attributes.position;p.setZ(0,fLineZ0[i]-fv);p.needsUpdate=true;l.geometry.computeBoundingSphere();});
+      bLines.forEach((l,i)=>{const p=l.geometry.attributes.position;p.setZ(0,bLineZ0[i]+bv);p.needsUpdate=true;l.geometry.computeBoundingSphere();});
+      if(p<1)requestAnimationFrame(step);else{setTimeout(()=>{splitBusy=false;upd('✅ 分离完成');},100);}
+    }
+    setTimeout(()=>{
+      const r0=performance.now();
+      function stepR(t){const p=Math.min((t-r0)/durR,1);const ee=p<0.5?2*p*p:-1+(4-2*p)*p;raTop.position.z=rTopS+(rTopT-rTopS)*ee;raBot.position.z=rBotS+(rBotT-rBotS)*ee;if(p<1)requestAnimationFrame(stepR);}
+      requestAnimationFrame(stepR);
+    },delay);
+    requestAnimationFrame(step);
+  } else {
+    // Closing: diamond first, outer later
+    const r0=performance.now();
+    function stepR(t){const p=Math.min((t-r0)/durR,1);const ee=p<0.5?2*p*p:-1+(4-2*p)*p;raTop.position.z=rTopS+(rTopT-rTopS)*ee;raBot.position.z=rBotS+(rBotT-rBotS)*ee;if(p<1)requestAnimationFrame(stepR);else{
+      // Diamond done, start outer
+      const t1=performance.now();
+      function step(t){const p=Math.min((t-t1)/dur,1);const ee=p<0.5?2*p*p:-1+(4-2*p)*p;const fv=fStart+(fTarget-fStart)*ee;const bv=bStart+(bTarget-bStart)*ee;frontGroup.position.z=-fv;backGroup.position.z=bv;fLines.forEach((l,i)=>{const a=l.geometry.attributes.position;a.setZ(0,fLineZ0[i]-fv);a.needsUpdate=true;l.geometry.computeBoundingSphere();});bLines.forEach((l,i)=>{const a=l.geometry.attributes.position;a.setZ(0,bLineZ0[i]+bv);a.needsUpdate=true;l.geometry.computeBoundingSphere();});if(p<1)requestAnimationFrame(step);else{setTimeout(()=>{splitBusy=false;upd('✅ 已复位');},100);}}
+      requestAnimationFrame(step);
+    }}
+    requestAnimationFrame(stepR);
+  }upd(splitOpen?'🔄 各层向腹直肌移动...':'🔄 各层复位...');
 };
 window.hc=async function(t){if(!t||!t.trim())return;
   document.getElementById('ti').value='';const l=t.toLowerCase().trim();
@@ -264,6 +443,61 @@ window.hc=async function(t){if(!t||!t.trim())return;
 };
 document.getElementById('ti').addEventListener('keydown',e=>{if(e.key==='Enter')hc(e.target.value)});
 window.addEventListener('resize',()=>{const w=ct.clientWidth,h=ct.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();r.setSize(w,h);lr.setSize(w,h)});
+
+// ─── Cross-section Panel ───
+const csPanel=document.getElementById('cs-panel');
+const csCanvas=document.getElementById('cs-canvas');
+const csCtx=csCanvas.getContext('2d');
+const csW=270,csH=270;
+
+function drawSplitSections(activeSide){
+  csCtx.clearRect(0,0,csW,csH);
+  // Grid background
+  csCtx.fillStyle='#f0f0f0';csCtx.fillRect(0,0,csW,csH);
+  csCtx.strokeStyle='#bbb';csCtx.lineWidth=0.8;
+  for(let i=0;i<csW;i+=20){csCtx.beginPath();csCtx.moveTo(i,0);csCtx.lineTo(i,csH);csCtx.stroke();}
+  for(let i=0;i<csH;i+=20){csCtx.beginPath();csCtx.moveTo(0,i);csCtx.lineTo(csW,i);csCtx.stroke();}
+  const cx=csW/2,barW=250,barX=10,zMin=-1.5,zMax=1.5;
+  const scale=(csH-60)/(zMax-zMin);
+  const yOff=38,gapPx=0.05*scale;
+  
+  const config=activeSide==='below'
+    ? {label:'图A · 弓状线以下(分离)',layers:[
+        ['#b0b0b0',0.91,1.21],
+        ['#d4a373',0.46,0.86],
+        ['#7a7a7a',0.11,0.41],
+        ['#e8845a',-0.54,0.06],
+        ['#95a5a6',-0.79,-0.59],
+      ]}
+    : {label:'图B · 弓状线以上(分离)',layers:[
+        ['#b0b0b0',0.79,1.09],
+        ['#d4a373',0.54,0.74],
+        ['#e8845a',-0.11,0.49],
+        ['#d4a373',-0.36,-0.16],
+        ['#7a7a7a',-0.71,-0.41],
+        ['#95a5a6',-0.96,-0.76],
+      ]};
+  
+  csCtx.fillStyle='#2a6eb0';csCtx.font='bold 12px sans-serif';csCtx.textAlign='center';
+  csCtx.fillText(config.label,cx,18);
+  config.layers.forEach(([clr,z1,z2]) => {
+    const y1=yOff+(zMax-Math.max(z1,z2))*scale;
+    const y2=yOff+(zMax-Math.min(z1,z2))*scale;
+    const h=y2-y1-gapPx;
+    csCtx.fillStyle=clr;csCtx.fillRect(barX,y1,barW,h);
+    csCtx.strokeStyle='#333';csCtx.lineWidth=1.5;csCtx.strokeRect(barX,y1,barW,h);
+  });
+  csCtx.fillStyle='#555';csCtx.font='10px sans-serif';csCtx.textAlign='center';
+  csCtx.fillText('前',cx,yOff-5);
+  csCtx.fillText('后',cx,yOff+(zMax-zMin)*scale+12);
+}
+
+// Initial: show below-arc
+drawSplitSections('below');
+
+const csSlider=document.getElementById('cs-slider');
+csSlider.oninput=()=>{const y=parseFloat(csSlider.value);drawSplitSections(y>0?'above':'below');sp.visible=true;sb.visible=true;sp.position.y=y;sb.position.y=y;};
+
 function loop(){requestAnimationFrame(loop);or.update();r.render(sc,cam);lr.render(sc,cam)}loop();
 upd('腹直肌鞘 · 弓状线 | 上段:完整鞘 | 下段:鞘后层缺如');
 </script>
