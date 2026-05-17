@@ -28,15 +28,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f0f1a;overflow:hid
 </style>
 </head>
 <body>
-<div id="s"><span id="st">腹直肌鞘 · 弓状线上下层次</span><span class="h" id="sh">鼠标拖拽旋转 · 滚轮缩放</span></div>
+<div id="s"><span id="st">腹直肌鞘 · 弓状线 · 一体模型</span><span class="h" id="sh">鼠标拖拽旋转 · 滚轮缩放</span></div>
 <button id="lt" onclick="document.getElementById('lg').classList.toggle('show')">📖</button>
 <div id="lg">
   <div class="i"><span class="c" style="background:#b0b0b0"></span> 腹外斜肌腱膜</div>
-  <div class="i"><span class="c" style="background:#d0d0d0"></span> 腹内斜肌腱膜</div>
-  <div class="i"><span class="c" style="background:#6a6a6a"></span> 腹横肌腱膜</div>
+  <div class="i"><span class="c" style="background:#d4a373"></span> 腹内斜肌腱膜(前/后层同色)</div>
+  <div class="i"><span class="c" style="background:#7a7a7a"></span> 腹横肌腱膜</div>
   <div class="i"><span class="c" style="background:#e8845a"></span> 腹直肌</div>
-  <div class="i"><span class="c" style="background:#5a7a8a"></span> 腹直肌鞘后层</div>
-  <div class="i"><span class="c" style="border-left:2px solid #ff6b6b;padding-left:4px"></span> 弓状线</div>
+  <div class="i"><span class="c" style="background:#95a5a6;opacity:0.5"></span> 腹横筋膜</div>
 </div>
 <div id="panel">
   <div id="cmd">
@@ -58,8 +57,8 @@ import{OrbitControls}from'three/addons/controls/OrbitControls.js';
 import{CSS2DRenderer,CSS2DObject}from'three/addons/renderers/CSS2DRenderer.js';
 
 const ct=document.getElementById('c'),sc=new THREE.Scene();sc.background=new THREE.Color(0x0f0f1a);
-const cam=new THREE.PerspectiveCamera(30,ct.clientWidth/ct.clientHeight,0.1,100);
-cam.position.set(10,6,12);
+const cam=new THREE.PerspectiveCamera(28,ct.clientWidth/ct.clientHeight,0.1,100);
+cam.position.set(10,4,11);
 const r=new THREE.WebGLRenderer({antialias:true});
 r.setSize(ct.clientWidth,ct.clientHeight);r.setPixelRatio(Math.min(window.devicePixelRatio,2));
 r.shadowMap.enabled=true;r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.0;
@@ -68,141 +67,149 @@ const lr=new CSS2DRenderer();lr.setSize(ct.clientWidth,ct.clientHeight);
 lr.domElement.style.position='absolute';lr.domElement.style.top='0';lr.domElement.style.left='0';
 lr.domElement.style.pointerEvents='none';ct.appendChild(lr.domElement);
 const or=new OrbitControls(cam,r.domElement);
-or.target.set(0,1.5,0);or.enableDamping=true;or.dampingFactor=0.08;or.minDistance=4;or.maxDistance=25;or.update();
+or.target.set(0,0,0);or.enableDamping=true;or.dampingFactor=0.08;or.minDistance=4;or.maxDistance=25;or.update();
 
 sc.add(new THREE.AmbientLight(0x404060,0.5));
-const kl=new THREE.DirectionalLight(0xffffff,2.5);kl.position.set(8,12,6);kl.castShadow=true;sc.add(kl);
-sc.add(new THREE.DirectionalLight(0x88bbff,0.6).position.set(-5,4,-6));
-sc.add(new THREE.DirectionalLight(0xffffff,0.5).position.set(-4,2,8));
+const kl=new THREE.DirectionalLight(0xffffff,2.5);kl.position.set(8,10,6);kl.castShadow=true;sc.add(kl);
+sc.add(new THREE.DirectionalLight(0x88bbff,0.6).position.set(-5,6,-6));
+sc.add(new THREE.DirectionalLight(0xffffff,0.5).position.set(-4,3,8));
 sc.add(new THREE.HemisphereLight(0x4466aa,0x222244,0.4));
-const gh=new THREE.GridHelper(14,14,0x33334d,0x22223a);gh.position.y=-0.5;sc.add(gh);
 
 // ═══════════════════════════════════════
-//  UNIFIED MODEL - seamless block
-//  Left half (x<0) = above arcuate line
-//  Right half (x>0) = below arcuate line
+//  UNIFIED VERTICAL MODEL
+//  Y+ (top) = above arcuate line
+//  Y- (bottom) = below arcuate line
+//  Z+ (front) = superficial (skin side)
+//  Z- (back) = deep (peritoneal side)
 // ═══════════════════════════════════════
 const mg=new THREE.Group();sc.add(mg);
 
-const H=3.2, // height
-      hW=2.4, // half-width of each side (total width = 4.8)
-      D=2.4,  // half-depth (total depth = 4.8)
+const HW=2.8, // half-width (left-right)
+      D=2.2,  // half-depth (front-back)
+      HH=2.8,  // half-height of each section (total height = 5.6)
       LT=0.22; // layer thickness
 
-const col={
-  eo:0xb0b0b0, io:0xd0d0d0, ta:0x6a6a6a,
-  ra:0xe8845a, io_post:0x5a7a8a,
-  fascia:0x95a5a6, gap:0x1a2030
-};
+const C={eo:0xb0b0b0, io:0xd4a373, ta:0x7a7a7a, ra:0xe8845a, fascia:0x95a5a6};
 
-function mbox(colr,w,ht,d,x,y,z,op=1){
-  const g=new THREE.BoxGeometry(w,ht,d);
-  const mat=new THREE.MeshPhysicalMaterial({
-    color:colr,roughness:0.55,metalness:0.0,
+function mkBox(clr,w,h,d,x,y,z,op=1){
+  const g=new THREE.BoxGeometry(w,h,d);
+  const m=new THREE.MeshPhysicalMaterial({
+    color:clr,roughness:0.5,metalness:0.0,
     transparent:op<1,opacity:op,clearcoat:0.05
   });
-  const me=new THREE.Mesh(g,mat);me.position.set(x,y,z);
+  const me=new THREE.Mesh(g,m);me.position.set(x,y,z);
   me.castShadow=true;return me;
 }
 
-// ─── Base block (semi-transparent background) ───
-const base=mbox(0x1a2233,hW*2+LT*2,H+LT*2,D*2+LT*2,0,H/2,0,0.02);
-mg.add(base);
+// ─── SINGLE continuous rectus abdominis ───
+mg.add(mkBox(C.ra, 0.5, HH*2, D*1.6, 0, 0, 0));
 
-// ─── LEFT HALF: Above Arcuate Line ───
-// Center of left half: x = -hW/2
-const lx = -hW/2;
+// ─── Upper: Above Arcuate Line ───
+// Front→back: EO → IO_ant → RECTUS → IO_post → TA → fascia
+const uy = HH/2; // center of upper half
 
-// Anterior: EO → IO_ant (superficial)
-mg.add(mbox(col.eo, hW, H, LT, lx, H/2, D-LT/2));
-mg.add(mbox(col.io, hW, H, LT, lx, H/2, D-LT*1.5-0.02));
+mg.add(mkBox(C.eo, HW, HH, LT, 0, uy, D-LT/2));
+mg.add(mkBox(C.io, HW, HH, LT, 0, uy, D-LT*1.5-0.02));
+// rectus is here (center)
+mg.add(mkBox(C.io, HW, HH, LT, 0, uy, -D+LT*2.5+0.04)); // IO posterior, SAME color
+mg.add(mkBox(C.ta, HW, HH, LT, 0, uy, -D+LT*1.5+0.02));
+mg.add(mkBox(C.fascia, HW, HH, LT*0.3, 0, uy, -D+LT*0.3, 0.3));
 
-// Rectus (thin, light orange-red, centered in left half)
-mg.add(mbox(col.ra, 0.55, H*0.85, D*1.5, lx, H/2, 0));
+// ─── Lower: Below Arcuate Line ───
+// Front→back: EO → IO_ant → IO_post → TA → RECTUS → fascia
+const ly = -HH/2;
 
-// Posterior: IO_post → TA (deep)
-mg.add(mbox(col.io_post, hW, H, LT, lx, H/2, -D+LT*2.5+0.04));
-mg.add(mbox(col.ta, hW, H, LT, lx, H/2, -D+LT*1.5+0.02));
+mg.add(mkBox(C.eo, HW, HH, LT, 0, ly, D-LT/2));
+mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*1.5-0.02));  // IO anterior
+mg.add(mkBox(C.io, HW, HH, LT, 0, ly, D-LT*2.5-0.04));  // IO posterior - BOTH on same side!
+mg.add(mkBox(C.ta, HW, HH, LT, 0, ly, D-LT*3.5-0.06));
+// rectus is here (center) - same single continuous muscle
+mg.add(mkBox(C.fascia, HW, HH, LT*0.3, 0, ly, -D+LT*0.15, 0.3));
 
-// Fascia
-mg.add(mbox(col.fascia, hW, H, LT*0.3, lx, H/2, -D+LT*0.3, 0.35));
+// ─── Arcuate Line (horizontal red line at y=0) ───
+const arcPts=[
+  new THREE.Vector3(-HW-0.1,0,-D-0.05),
+  new THREE.Vector3(HW+0.1,0,-D-0.05),
+];
+mg.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(arcPts),
+  new THREE.LineBasicMaterial({color:0xe74c3c})
+));
 
-// ─── RIGHT HALF: Below Arcuate Line ───
-const rx = hW/2;
-
-// Anterior: EO → IO → TA (ALL three in front)
-mg.add(mbox(col.eo, hW, H, LT, rx, H/2, D-LT/2));
-mg.add(mbox(col.io, hW, H, LT, rx, H/2, D-LT*1.5-0.02));
-mg.add(mbox(col.ta, hW, H, LT, rx, H/2, D-LT*2.5-0.04));
-
-// Rectus - BEHIND all three
-mg.add(mbox(col.ra, 0.55, H*0.85, D*1.2, rx, H/2, 0.2));
-
-// No posterior sheath - just fascia
-mg.add(mbox(col.fascia, hW, H, LT*0.3, rx, H/2, -D+LT*0.15, 0.35));
-
-// ─── Arcuate Line Divider (red line at x=0) ───
-const arcGeo=new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(0,-H/2,-D-0.05),
-  new THREE.Vector3(0, H/2,-D-0.05),
-  new THREE.Vector3(0, H/2, D+0.05),
-  new THREE.Vector3(0,-H/2, D+0.05),
-]);
-mg.add(new THREE.Line(arcGeo,new THREE.LineBasicMaterial({color:0xe74c3c})));
-
-// Arcuate arrow marker at top
-const arrM=new THREE.Mesh(
-  new THREE.ConeGeometry(0.06,0.18,8),
-  new THREE.MeshBasicMaterial({color:0xe74c3c})
-);
-arrM.position.set(0,H/2+0.6,D+0.3);arrM.rotation.x=-Math.PI/2;mg.add(arrM);
-const arrS=new THREE.Mesh(
-  new THREE.CylinderGeometry(0.02,0.02,0.3,4),
-  new THREE.MeshBasicMaterial({color:0xe74c3c})
-);
-arrS.position.set(0,H/2+0.4,D+0.3);mg.add(arrS);
-
-// ─── Labels ───
-function lb(t,x,y,z,c='#fff',s='12px'){
-  const d=document.createElement('div');d.textContent=t;
-  d.style.color=c;d.style.fontSize=s;d.style.fontWeight='600';
-  d.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
-  d.style.background='rgba(0,0,0,0.55)';d.style.padding='2px 10px';
-  d.style.borderRadius='6px';d.style.border='1px solid '+c;
-  d.style.whiteSpace='nowrap';d.style.pointerEvents='none';
-  const l=new CSS2DObject(d);l.position.set(x,y,z);mg.add(l);return l;
+// Arrow markers
+for(let side=-1;side<=1;side+=2){
+  const arr=new THREE.Mesh(
+    new THREE.ConeGeometry(0.06,0.18,8),
+    new THREE.MeshBasicMaterial({color:0xe74c3c})
+  );
+  arr.position.set(side*(HW+0.3),0,-D-0.05);
+  const dir=side>0?-Math.PI/2:Math.PI/2;
+  arr.rotation.z=dir;
+  mg.add(arr);
 }
 
-const LG=[];
-LG.push(lb('← 弓状线以上',-hW/2,H/2+0.4,D+0.8,'#ff6b6b','13px'));
-LG.push(lb('弓状线以下 →',hW/2,H/2+0.4,D+0.8,'#ff6b6b','13px'));
+// ─── Helper: label with leader line ───
+function lblWithLine(text, labelX, labelY, labelZ, targetX, targetY, targetZ, color='#fff', s='12px'){
+  // Label
+  const d=document.createElement('div');d.textContent=text;
+  d.style.color=color;d.style.fontSize=s;d.style.fontWeight='500';
+  d.style.textShadow='0 1px 4px rgba(0,0,0,0.9)';
+  d.style.background='rgba(0,0,0,0.7)';d.style.padding='2px 10px';
+  d.style.borderRadius='5px';d.style.border='1px solid '+color;
+  d.style.whiteSpace='nowrap';d.style.pointerEvents='none';
+  const lbl=new CSS2DObject(d);
+  lbl.position.set(labelX, labelY, labelZ);
+  mg.add(lbl);
 
-// Left side layer labels
-LG.push(lb('腹外斜肌腱膜',-hW/2,H/2+0.05,D+0.7,'#b0b0b0'));
-LG.push(lb('腹内斜肌腱膜(前层)',-hW/2,H/2-0.2,D+0.7,'#d0d0d0'));
-LG.push(lb('腹直肌',-hW/2,H/2-0.5,D+0.7,'#e8845a'));
-LG.push(lb('腹内斜肌腱膜(后层)',-hW/2,H/2-0.85,D+0.7,'#5a7a8a'));
-LG.push(lb('腹横肌腱膜',-hW/2,H/2-1.1,D+0.7,'#6a6a6a'));
+  // Leader line
+  const linePts=[
+    new THREE.Vector3(targetX, targetY, targetZ),
+    new THREE.Vector3(labelX, labelY, labelZ),
+  ];
+  const line=new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(linePts),
+    new THREE.LineBasicMaterial({color:color,transparent:true,opacity:0.35})
+  );
+  mg.add(line);
 
-// Right side layer labels
-LG.push(lb('腹外斜肌腱膜',hW/2,H/2+0.05,D+0.7,'#b0b0b0'));
-LG.push(lb('腹内斜肌腱膜',hW/2,H/2-0.2,D+0.7,'#d0d0d0'));
-LG.push(lb('腹横肌腱膜',hW/2,H/2-0.45,D+0.7,'#6a6a6a'));
-LG.push(lb('腹直肌',hW/2,H/2-0.75,D+0.7,'#e8845a'));
-LG.push(lb('(鞘后层缺如)',hW/2,H/2-1.05,D+0.7,'#666','11px'));
+  return lbl;
+}
+
+const LGs=[];
+
+// --- Left side labels (above arcuate) ---
+const lxL = -HW-1.1;
+const lxR = HW+1.1;
+
+LGs.push(lblWithLine('弓状线以上', lxL, HH*0.65, D*0.6, 0, HH*0.65, D*0.3, '#ff6b6b', '13px'));
+LGs.push(lblWithLine('弓状线以下', lxL, -HH*0.65, D*0.6, 0, -HH*0.65, D*0.3, '#ff6b6b', '13px'));
+LGs.push(lblWithLine('弓状线', lxL, 0, -D-0.5, 0, 0, -D-0.05, '#e74c3c', '12px'));
+
+LGs.push(lblWithLine('腹外斜肌腱膜', lxL, HH*0.5, D*0.9, 0, HH*0.7, D-LT, '#b0b0b0'));
+LGs.push(lblWithLine('腹内斜肌腱膜(前层)', lxL, HH*0.25, D*0.9, 0, HH*0.5, D-LT*1.5, '#d4a373'));
+LGs.push(lblWithLine('腹直肌', lxL, HH*0.05, D*0.9, 0, HH*0.15, 0, '#e8845a'));
+LGs.push(lblWithLine('腹内斜肌腱膜(后层)', lxL, -HH*0.15, D*0.9, 0, HH*0.35, -D+LT*2.5, '#d4a373'));
+LGs.push(lblWithLine('腹横肌腱膜', lxL, -HH*0.35, D*0.9, 0, HH*0.2, -D+LT*1.5, '#7a7a7a'));
+
+// --- Right side labels (below arcuate) ---
+LGs.push(lblWithLine('腹外斜肌腱膜', lxR, -HH*0.3, D*0.9, 0, -HH*0.5, D-LT, '#b0b0b0'));
+LGs.push(lblWithLine('腹内斜肌腱膜(前后层)', lxR, -HH*0.55, D*0.9, 0, -HH*0.7, D-LT*2, '#d4a373','12px'));
+LGs.push(lblWithLine('腹横肌腱膜', lxR, -HH*0.8, D*0.9, 0, -HH*0.85, D-LT*3.5, '#7a7a7a'));
+LGs.push(lblWithLine('腹直肌', lxR, -HH*0.2, D*0.9, 0, -HH*0.2, 0, '#e8845a'));
+LGs.push(lblWithLine('(鞘后层缺如)', lxR, -HH*1.0, D*0.5, 0, -HH, -D*0.3, '#666', '11px'));
 
 // ─── Slice Plane ───
 const sp=new THREE.Mesh(
-  new THREE.PlaneGeometry(D*2+0.3,H+0.3),
-  new THREE.MeshPhysicalMaterial({color:0x4a9eff,transparent:true,opacity:0.05,side:THREE.DoubleSide,emissive:0x4a9eff,emissiveIntensity:0.04})
+  new THREE.PlaneGeometry(HW*2+0.3,D*2+0.3),
+  new THREE.MeshPhysicalMaterial({color:0x4a9eff,transparent:true,opacity:0.04,side:THREE.DoubleSide,emissive:0x4a9eff,emissiveIntensity:0.03})
 );
-sp.rotation.y=Math.PI/2;sp.position.set(0,H/2,0);sp.visible=false;mg.add(sp);
+sp.rotation.x=-Math.PI/2;sp.position.set(0,0,0);sp.visible=false;mg.add(sp);
 const sb=new THREE.Line(
   new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-0.01,-H/2-0.05,-D-0.1),new THREE.Vector3(-0.01,-H/2-0.05,D+0.1),
-    new THREE.Vector3(-0.01,H/2+0.05,D+0.1),new THREE.Vector3(-0.01,H/2+0.05,-D-0.1),
-    new THREE.Vector3(-0.01,-H/2-0.05,-D-0.1)]),
-  new THREE.LineBasicMaterial({color:0x4a9eff,transparent:true,opacity:0.35})
+    new THREE.Vector3(-HW-0.05,0,-D-0.05),new THREE.Vector3(-HW-0.05,0,D+0.05),
+    new THREE.Vector3(HW+0.05,0,D+0.05),new THREE.Vector3(HW+0.05,0,-D-0.05),
+    new THREE.Vector3(-HW-0.05,0,-D-0.05)]),
+  new THREE.LineBasicMaterial({color:0x4a9eff,transparent:true,opacity:0.3})
 );
 sb.visible=false;mg.add(sb);
 
@@ -212,44 +219,44 @@ function upd(t,h=''){se.textContent=t;sh.textContent=h||'点击按钮或输入�
 let anim=false;
 
 window.rst=()=>{
-  cam.position.set(10,6,12);or.target.set(0,1.5,0);or.update();
+  cam.position.set(10,4,11);or.target.set(0,0,0);or.update();
   sp.visible=sb.visible=false;
-  upd('腹直肌鞘 · 弓状线上下层次');
+  upd('腹直肌鞘 · 弓状线 · 一体模型');
 };
 window.tl=()=>{
-  const v=!LG[0].visible;LG.forEach(l=>l.visible=v);
+  const v=!LGs[0].visible;LGs.forEach(l=>l.visible=v);
   upd(v?'标注开':'标注关');
 };
 window.as=()=>{
   if(anim)return;anim=true;sp.visible=sb.visible=true;
-  const ss=-hW*1.2,es=hW*1.2,dur=3500,t0=performance.now();
+  const ss=-HH*1.1,es=HH*1.1,dur=3000,t0=performance.now();
   function step(t){
-    const p=Math.min((t-t0)/dur,1),ee=p<0.5?2*p*p:-1+(4-2*p)*p,x=ss+(es-ss)*ee;
-    sp.position.x=x;sb.position.x=x;
+    const p=Math.min((t-t0)/dur,1),ee=p<0.5?2*p*p:-1+(4-2*p)*p,y=ss+(es-ss)*ee;
+    sp.position.y=y;sb.position.y=y;
     if(p<1)requestAnimationFrame(step);else{anim=false;setTimeout(()=>{
-      sp.position.x=0;sb.position.x=0;
+      sp.position.y=0;sb.position.y=0;
       if(!sp.visible){sp.visible=false;sb.visible=false}
-    },2000)}
+    },1500)}
   }
-  requestAnimationFrame(step);upd('🔄 从左(弓上线以上)滑向右(弓上线以下)...');
+  requestAnimationFrame(step);upd('🔄 滑动截面：从上(弓上线以上)滑向下(弓线以下)...');
 };
 window.hc=async function(t){if(!t||!t.trim())return;
   document.getElementById('ti').value='';const l=t.toLowerCase().trim();
   const m=[
     {p:['复位','重置','还原'],f:()=>{rst();return'已复位'}},
     {p:['滑动','动画','过渡'],f:()=>{as();return'滑动截面'}},
-    {p:['前层','鞘前层'],f:()=>{upd('🔍 弓上线以上: 外斜+内斜前层 | 弓下线以下: 外斜+内斜+腹横肌全在前');return'鞘前层'}},
-    {p:['后层','鞘后层'],f:()=>{upd('🔍 弓上线以上: 内斜后层+腹横肌(有鞘后层) | 弓下线以下: 鞘后层缺如');return'鞘后层'}},
-    {p:['讲解','教','学'],f:()=>{upd('📖 弓状线以上: 腹内斜肌腱膜分裂为前后两层包裹腹直肌，形成完整鞘结构。弓状线以下: 三层腱膜全部走行于腹直肌前方，后方直接贴腹横筋膜。');return'讲解'}},
-    {p:['临床','疝','薄弱'],f:()=>{upd('🏥 弓状线以下腹直肌鞘后层缺如，该区腹壁薄弱。下腹部手术(阑尾、剖宫产)后切口疝好发于此。');return'临床意义'}},
+    {p:['前层','鞘前层'],f:()=>{upd('🔍 鞘前层：弓上线以上=外斜+内斜前层 | 弓线以下=外斜+内斜(前后层)+腹横肌');return'鞘前层'}},
+    {p:['后层','鞘后层'],f:()=>{upd('🔍 鞘后层：弓上线以上=内斜后层+腹横肌(有鞘后层) | 弓线以下=鞘后层缺如');return'鞘后层'}},
+    {p:['讲解','教','学'],f:()=>{upd('📖 弓状线以上：腹内斜肌腱膜分裂为前后两层包裹腹直肌。弓状线以下：内斜腱膜不再分裂，三层腱膜全部走行于腹直肌前方。弓状线可理解为腹横肌腱膜上的"裂口"，腹直肌从此穿过。');return'讲解'}},
+    {p:['临床','疝','薄弱'],f:()=>{upd('🏥 弓状线以下腹直肌鞘后层缺如，腹壁薄弱。下腹部手术(阑尾、剖宫产)后易发切口疝。');return'临床意义'}},
   ];
   for(const e of m)for(const p of e.p)if(l.includes(p)){upd('✅ '+e.f());return}
-  upd('🤔 未理解，试试: 滑动截面/前层/后层/讲解/临床');
+  upd('🤔 请试试: 滑动截面/前层/后层/讲解/临床');
 };
 document.getElementById('ti').addEventListener('keydown',e=>{if(e.key==='Enter')hc(e.target.value)});
 window.addEventListener('resize',()=>{const w=ct.clientWidth,h=ct.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();r.setSize(w,h);lr.setSize(w,h)});
 function loop(){requestAnimationFrame(loop);or.update();r.render(sc,cam);lr.render(sc,cam)}loop();
-upd('腹直肌鞘 · 弓状线上下 · 一体模型 | 左:弓上线以上 右:弓线以下');
+upd('腹直肌鞘 · 弓状线 | 上段:完整鞘 | 下段:鞘后层缺如');
 </script>
 </body>
 </html>
