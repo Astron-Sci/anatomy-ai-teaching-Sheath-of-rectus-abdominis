@@ -222,29 +222,20 @@ meshRefs.fascia=track(backGroup,foldedBox(C.fascia, HW, HH*2, LT*0.3, 0, 0, -D+L
 // ─── Rectus ───
 meshRefs.rectus=[raTop,raBot];
 
-// ─── Arcuate Line ───
-const arcPts=[
-  new THREE.Vector3(-HW-0.1,0,-D-0.05),
-  new THREE.Vector3(HW+0.1,0,-D-0.05),
-];
-mg.add(new THREE.Line(
-  new THREE.BufferGeometry().setFromPoints(arcPts),
-  new THREE.LineBasicMaterial({color:0xe74c3c})
-));
+// ─── Arcuate cross-section plane (toggle with label) ───
+const arcPlane=new THREE.Mesh(
+  new THREE.PlaneGeometry(HW*2+0.5,D*2+0.5),
+  new THREE.MeshPhysicalMaterial({color:0xe74c3c,transparent:true,opacity:0.1,side:THREE.DoubleSide,emissive:0xe74c3c,emissiveIntensity:0.05})
+);
+arcPlane.rotation.x=-Math.PI/2;arcPlane.position.set(0,0,0);arcPlane.visible=false;mg.add(arcPlane);
+const arcBorder=new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-HW-0.1,0,-D-0.05),new THREE.Vector3(-HW-0.1,0,D+0.05),new THREE.Vector3(HW+0.1,0,D+0.05),new THREE.Vector3(HW+0.1,0,-D-0.05),new THREE.Vector3(-HW-0.1,0,-D-0.05)]),
+  new THREE.LineBasicMaterial({color:0xe74c3c,transparent:true,opacity:0.5})
+);
+arcBorder.visible=false;mg.add(arcBorder);
 
-// Arrow markers
-for(let side=-1;side<=1;side+=2){
-  const arr=new THREE.Mesh(
-    new THREE.ConeGeometry(0.06,0.18,8),
-    new THREE.MeshBasicMaterial({color:0xe74c3c})
-  );
-  arr.position.set(side*(HW+0.3),0,-D-0.05);
-  const dir=side>0?-Math.PI/2:Math.PI/2;
-  arr.rotation.z=dir;
-  mg.add(arr);
-}
 
-// ─── Helper: label with leader line ───
+// // ─── Helper: label with leader line ───
 function lblWithLine(text, labelX, labelY, labelZ, targetX, targetY, targetZ, color='#fff', s='14px'){
   const d=document.createElement('div');d.textContent=text;
   d.style.color=color;d.style.fontSize=s;d.style.fontWeight='600';
@@ -290,9 +281,18 @@ function addLbl(text, lx, ly, lz, tx, ty, tz, c, s, group, meshes){
 const lxL = HW+2.0;
 
 // All labels on the left side, organized neatly
-addLbl('弓状线', lxL, 0, -D-0.5, 0, 0, -D-0.05, '#e74c3c', '13px');
+// 弓状线 label (no leader line)
+const ad=document.createElement('div');ad.textContent='弓状线';
+ad.style.color='#e74c3c';ad.style.fontSize='13px';ad.style.fontWeight='600';
+ad.style.textShadow='0 2px 6px rgba(0,0,0,0.9)';
+ad.style.background='rgba(0,0,0,0.75)';ad.style.padding='4px 14px';
+ad.style.borderRadius='8px';ad.style.border='2px solid #e74c3c';
+ad.style.whiteSpace='nowrap';ad.style.cursor='pointer';ad.style.pointerEvents='auto';
+const albl=new CSS2DObject(ad);albl.position.set(lxL,0,-D-0.5);mg.add(albl);
+let ahl=false;
+ad.onclick=()=>{ahl=!ahl;arcPlane.visible=ahl;arcBorder.visible=ahl;ad.style.borderColor=ahl?'#fff':'#e74c3c';ad.style.background=ahl?'rgba(255,255,255,0.25)':'rgba(0,0,0,0.75)';ad.style.boxShadow=ahl?'0 0 12px #e74c3c':'none';}; 
 
-addLbl('腹外斜肌腱膜', lxL, HH*0.3, D*0.7, 0, 0, D-LT, '#b0b0b0','12px',undefined,meshRefs.eoAbove.concat(meshRefs.eoBelow));
+addLbl('腹外斜肌腱膜', lxL, HH*0.3, D*0.7, 0, 0, D-LT, '#b0b0b0','12px','front',meshRefs.eoAbove.concat(meshRefs.eoBelow));
 addLbl('腹内斜肌腱膜(前层)', lxL, HH*0.05, D*0.7, 0, HH*0.5, D-LT*1.5, '#d4a373','12px','front',meshRefs.ioAntAbove);
 addLbl('腹直肌', lxL, -HH*0.15, D*0.7, 0, 0, 0, '#e8845a',undefined,undefined,meshRefs.rectus);
 addLbl('腹内斜肌腱膜(后层)', lxL, -HH*0.38, D*0.7, 0, HH*0.35, -D+LT*2.5, '#d4a373','12px','back',meshRefs.ioPostAbove);
@@ -361,9 +361,9 @@ let splitOpen=false,splitBusy=false;
 window.toggleSplit=()=>{
   if(splitBusy)return;splitBusy=true;
   splitOpen=!splitOpen;
-  const fTarget=splitOpen?1.55:-1.55;
-  const bTarget=splitOpen?1.69:-1.69;
-  const fStart=splitOpen?0:1.55;
+  const fTarget=splitOpen?-1.55:0;
+  const bTarget=splitOpen?1.69:0;
+  const fStart=splitOpen?0:-1.55;
   const bStart=splitOpen?0:1.69;
   const rTopT=splitOpen?0.19:0,rTopS=splitOpen?0:0.19;
   const rBotT=splitOpen?-0.24:0,rBotS=splitOpen?0:-0.24;
@@ -375,9 +375,9 @@ window.toggleSplit=()=>{
       const ee=p<0.5?2*p*p:-1+(4-2*p)*p;
       const fv=fStart+(fTarget-fStart)*ee;
       const bv=bStart+(bTarget-bStart)*ee;
-      frontGroup.position.z=-fv;
+      frontGroup.position.z=fv;
       backGroup.position.z=bv;
-      fLines.forEach((l,i)=>{const p=l.geometry.attributes.position;p.setZ(0,fLineZ0[i]-fv);p.needsUpdate=true;l.geometry.computeBoundingSphere();});
+      fLines.forEach((l,i)=>{const p=l.geometry.attributes.position;p.setZ(0,fLineZ0[i]+fv);p.needsUpdate=true;l.geometry.computeBoundingSphere();});
       bLines.forEach((l,i)=>{const p=l.geometry.attributes.position;p.setZ(0,bLineZ0[i]+bv);p.needsUpdate=true;l.geometry.computeBoundingSphere();});
       if(p<1)requestAnimationFrame(step);else{setTimeout(()=>{splitBusy=false;upd('✅ 分离完成');},100);}
     }
@@ -393,7 +393,7 @@ window.toggleSplit=()=>{
     function stepR(t){const p=Math.min((t-r0)/durR,1);const ee=p<0.5?2*p*p:-1+(4-2*p)*p;raTop.position.z=rTopS+(rTopT-rTopS)*ee;raBot.position.z=rBotS+(rBotT-rBotS)*ee;if(p<1)requestAnimationFrame(stepR);else{
       // Diamond done, start outer
       const t1=performance.now();
-      function step(t){const p=Math.min((t-t1)/dur,1);const ee=p<0.5?2*p*p:-1+(4-2*p)*p;const fv=fStart+(fTarget-fStart)*ee;const bv=bStart+(bTarget-bStart)*ee;frontGroup.position.z=-fv;backGroup.position.z=bv;fLines.forEach((l,i)=>{const a=l.geometry.attributes.position;a.setZ(0,fLineZ0[i]-fv);a.needsUpdate=true;l.geometry.computeBoundingSphere();});bLines.forEach((l,i)=>{const a=l.geometry.attributes.position;a.setZ(0,bLineZ0[i]+bv);a.needsUpdate=true;l.geometry.computeBoundingSphere();});if(p<1)requestAnimationFrame(step);else{setTimeout(()=>{splitBusy=false;upd('✅ 已复位');},100);}}
+      function step(t){const p=Math.min((t-t1)/dur,1);const ee=p<0.5?2*p*p:-1+(4-2*p)*p;const fv=fStart+(fTarget-fStart)*ee;const bv=bStart+(bTarget-bStart)*ee;frontGroup.position.z=fv;backGroup.position.z=bv;fLines.forEach((l,i)=>{const a=l.geometry.attributes.position;a.setZ(0,fLineZ0[i]+fv);a.needsUpdate=true;l.geometry.computeBoundingSphere();});bLines.forEach((l,i)=>{const a=l.geometry.attributes.position;a.setZ(0,bLineZ0[i]+bv);a.needsUpdate=true;l.geometry.computeBoundingSphere();});if(p<1)requestAnimationFrame(step);else{setTimeout(()=>{splitBusy=false;upd('✅ 已复位');},100);}}
       requestAnimationFrame(step);
     }}
     requestAnimationFrame(stepR);
