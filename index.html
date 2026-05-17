@@ -102,7 +102,9 @@ function mkBox(clr,w,h,d,x,y,z,op=1){
 }
 
 // ─── SINGLE continuous rectus abdominis ───
-mg.add(mkBox(C.ra, 0.5, HH*2, D*1.6, 0, 0, 0));
+// Rectus: rotated 90° along its long axis → broad (left-right) and thin (front-back)
+// width = HW*0.6 (broad), depth = 0.4 (thin strip)
+mg.add(mkBox(C.ra, HW*0.6, HH*2, 0.4, 0, 0, 0));
 
 // ─── Upper: Above Arcuate Line ───
 // Front→back: EO → IO_ant → RECTUS → IO_post → TA → fascia
@@ -110,7 +112,7 @@ const uy = HH/2; // center of upper half
 
 mg.add(mkBox(C.eo, HW, HH, LT, 0, uy, D-LT/2));
 mg.add(mkBox(C.io, HW, HH, LT, 0, uy, D-LT*1.5-0.02));
-// rectus is here (center)
+// rectus is here (center) - broad flat muscle spanning left-right
 mg.add(mkBox(C.io, HW, HH, LT, 0, uy, -D+LT*2.5+0.04)); // IO posterior, SAME color
 mg.add(mkBox(C.ta, HW, HH, LT, 0, uy, -D+LT*1.5+0.02));
 mg.add(mkBox(C.fascia, HW, HH, LT*0.3, 0, uy, -D+LT*0.3, 0.3));
